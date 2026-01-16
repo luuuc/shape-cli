@@ -1,0 +1,61 @@
+[package]
+name = "shape-cli"
+version = "0.1.0"
+edition = "2024"
+description = "A local-first task management CLI for software teams"
+license = "MIT"
+repository = "https://github.com/shape-cli/shape"
+readme = "README.md"
+keywords = ["cli", "project-management", "task", "shapeup"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "shape"
+path = "src/main.rs"
+
+[dependencies]
+# CLI framework
+clap = { version = "4", features = ["derive", "env"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+toml = "0.8"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Graph algorithms (for dependency graph)
+petgraph = "0.7"
+
+# File locking
+fs2 = "0.4"
+
+# Hashing for ID generation
+blake3 = "1"
+
+# Directory handling
+directories = "6"
+
+
+[dev-dependencies]
+# CLI testing
+assert_cmd = "2"
+predicates = "3"
+
+# Temp directories for tests
+tempfile = "3"
+
+# Property testing
+proptest = "1"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = "z"
