@@ -124,6 +124,60 @@ Plugin discovery:
 1. `.shape/plugins/` in project directory
 2. Directories in `$PATH`
 
+## AI Integration
+
+Shape CLI is designed for AI agent consumption.
+
+### Quick Setup
+
+```bash
+shape agent-setup  # Auto-configure CLAUDE.md, .cursorrules, etc.
+```
+
+This detects existing AI config files and adds Shape CLI instructions. Supports:
+- `CLAUDE.md` (Claude Code)
+- `.cursorrules` (Cursor)
+- `.windsurfrules` (Windsurf)
+- `AGENTS.md` (generic)
+
+Options:
+- `--show` - Preview instructions without writing
+- `--claude` - Only configure CLAUDE.md
+- `--cursor` - Only configure .cursorrules
+- `--windsurf` - Only configure .windsurfrules
+
+### Manual Integration
+
+Add to your AI config file:
+- Check `shape ready` for available tasks
+- Use `shape context --compact` for token-efficient project state
+- Mark tasks with `shape task start/done`
+
+### Output Formats
+
+All commands support `--format json` for machine parsing:
+
+```bash
+shape ready --format json
+shape context --compact  # Already optimized for AI
+```
+
+### Example Workflow
+
+```bash
+# AI agent checks what's ready
+shape ready --format json
+
+# Starts working on a task
+shape task start a-abc1234.1
+
+# Completes the task
+shape task done a-abc1234.1
+
+# Gets full context if needed
+shape context --compact
+```
+
 ## Building
 
 ```bash

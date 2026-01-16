@@ -10,6 +10,7 @@ mod query;
 mod context;
 mod plugin_cmd;
 mod sync_cmd;
+mod agent_setup;
 
 pub use app::{Cli, Commands, run};
 pub use output::{Output, OutputFormat};

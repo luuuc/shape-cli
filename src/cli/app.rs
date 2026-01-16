@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 use anyhow::Result;
 
 use super::output::{Output, OutputFormat};
-use super::{anchor, task, query, context, plugin_cmd, sync_cmd};
+use super::{anchor, task, query, context, plugin_cmd, sync_cmd, agent_setup};
 use crate::storage::Project;
 
 #[derive(Parser)]
@@ -76,6 +76,25 @@ pub enum Commands {
     /// Sync with external tools
     #[command(subcommand)]
     Sync(sync_cmd::SyncCommands),
+
+    /// Configure AI agent integration
+    AgentSetup {
+        /// Preview instructions without writing to files
+        #[arg(long)]
+        show: bool,
+
+        /// Only configure CLAUDE.md
+        #[arg(long)]
+        claude: bool,
+
+        /// Only configure .cursorrules
+        #[arg(long)]
+        cursor: bool,
+
+        /// Only configure .windsurfrules
+        #[arg(long)]
+        windsurf: bool,
+    },
 }
 
 /// Main entry point for the CLI
@@ -102,6 +121,10 @@ pub fn run() -> Result<()> {
 
         Commands::Plugin(cmd) => plugin_cmd::run(cmd, &output)?,
         Commands::Sync(cmd) => sync_cmd::run(cmd, &output)?,
+
+        Commands::AgentSetup { show, claude, cursor, windsurf } => {
+            agent_setup::run(&output, show, claude, cursor, windsurf)?
+        }
     }
 
     Ok(())
