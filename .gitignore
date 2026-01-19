@@ -1,1 +1,8 @@
+.doc
+.project
 /target
+
+# Node.js / MCP server
+shape-mcp/node_modules/
+shape-mcp/dist/
+shape-mcp/*.tsbuildinfo
