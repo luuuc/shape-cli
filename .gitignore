@@ -15,3 +15,7 @@ shape-mcp/*.tsbuildinfo
 # Python
 __pycache__/
 *.pyc
+
+# Plugin artifacts
+shape-sync.json
+examples/plugins/shape-sync-jsonfile-go/shape-sync-jsonfile-go
