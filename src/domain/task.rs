@@ -1027,7 +1027,6 @@ impl Task {
             data,
         });
     }
-
 }
 
 #[cfg(test)]
@@ -1523,7 +1522,11 @@ mod tests {
         let task1 = make_task(1);
         let mut task2 = make_task(2);
 
-        task2.block("Depends on task 1 completion", "agent-1", Some(task1.id.clone()));
+        task2.block(
+            "Depends on task 1 completion",
+            "agent-1",
+            Some(task1.id.clone()),
+        );
 
         let block_info = task2.blocked.as_ref().unwrap();
         assert_eq!(block_info.on_task, Some(task1.id));

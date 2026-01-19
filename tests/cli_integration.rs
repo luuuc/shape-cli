@@ -1283,10 +1283,8 @@ fn test_claim_and_unclaim() {
         .assert()
         .success();
 
-    let claim_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
-        &claim_output.get_output().stdout,
-    ))
-    .unwrap();
+    let claim_json: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&claim_output.get_output().stdout)).unwrap();
     assert!(claim_json["claimed_by"].is_string());
     assert_eq!(claim_json["status"].as_str().unwrap(), "in_progress");
 
@@ -1297,10 +1295,8 @@ fn test_claim_and_unclaim() {
         .assert()
         .success();
 
-    let show_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
-        &show_output.get_output().stdout,
-    ))
-    .unwrap();
+    let show_json: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&show_output.get_output().stdout)).unwrap();
     assert_eq!(show_json["status"].as_str().unwrap(), "in_progress");
 
     // Unclaim the task
@@ -1364,10 +1360,8 @@ fn test_claim_force_override() {
         .assert()
         .success();
 
-    let show_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
-        &show_output.get_output().stdout,
-    ))
-    .unwrap();
+    let show_json: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&show_output.get_output().stdout)).unwrap();
     assert_eq!(show_json["claimed_by"].as_str().unwrap(), "agent-2");
 }
 
@@ -1395,14 +1389,19 @@ fn test_next_suggests_ready_task() {
 
     let high_output = shape_cmd()
         .current_dir(dir.path())
-        .args(["task", "add", brief_id, "High priority task", "--format", "json"])
+        .args([
+            "task",
+            "add",
+            brief_id,
+            "High priority task",
+            "--format",
+            "json",
+        ])
         .assert()
         .success();
 
-    let high_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
-        &high_output.get_output().stdout,
-    ))
-    .unwrap();
+    let high_json: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&high_output.get_output().stdout)).unwrap();
     let high_task_id = high_json["id"].as_str().unwrap();
 
     // Set high priority
@@ -1419,10 +1418,8 @@ fn test_next_suggests_ready_task() {
         .assert()
         .success();
 
-    let next_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
-        &next_output.get_output().stdout,
-    ))
-    .unwrap();
+    let next_json: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&next_output.get_output().stdout)).unwrap();
 
     assert_eq!(
         next_json["recommended"]["priority"].as_str().unwrap(),
@@ -1551,9 +1548,7 @@ fn test_block_and_unblock() {
 
     let next_stdout = String::from_utf8_lossy(&next_output.get_output().stdout);
     // Either empty or doesn't contain our blocked task
-    assert!(
-        !next_stdout.contains("Blockable task") || next_stdout.contains("No tasks ready")
-    );
+    assert!(!next_stdout.contains("Blockable task") || next_stdout.contains("No tasks ready"));
 
     // Unblock the task
     shape_cmd()
