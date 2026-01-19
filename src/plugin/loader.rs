@@ -214,7 +214,7 @@ impl PluginLoader {
     pub fn list_by_type(&mut self, plugin_type: PluginType) -> Result<Vec<&PluginInfo>> {
         let mut result = Vec::new();
 
-        for (_name, info) in &mut self.plugins {
+        for info in self.plugins.values_mut() {
             if info.manifest.is_none() {
                 if let Ok(manifest) = Self::load_manifest(&info.path) {
                     info.manifest = Some(manifest);

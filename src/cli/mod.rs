@@ -1,6 +1,34 @@
-//! CLI module for Shape
+//! # Command-Line Interface
 //!
-//! Provides all command-line interface functionality.
+//! User-facing CLI commands and output formatting.
+//!
+//! ## Command Groups
+//!
+//! | Group | Purpose | Examples |
+//! |-------|---------|----------|
+//! | Core | Project management | `init`, `status` |
+//! | Anchor | Document lifecycle | `anchor new`, `anchor list`, `anchor show` |
+//! | Task | Work item management | `task add`, `task start`, `task done` |
+//! | Query | Task state queries | `ready`, `blocked` |
+//! | Context | AI integration | `context`, `context --compact` |
+//! | Advanced | Plugins and sync | `plugin list`, `sync run` |
+//!
+//! ## Output Formats
+//!
+//! All commands support `--format` flag:
+//! - `text` (default) - Human-readable output
+//! - `json` - Machine-parseable JSON
+//!
+//! ## Verbose Mode
+//!
+//! Use `--verbose` (or `-v`) for debug output:
+//! ```bash
+//! shape --verbose ready
+//! ```
+//!
+//! ## Entry Point
+//!
+//! Call [`run()`] to parse arguments and execute the appropriate command.
 
 mod app;
 mod output;

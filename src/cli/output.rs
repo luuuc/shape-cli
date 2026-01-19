@@ -13,11 +13,12 @@ pub enum OutputFormat {
 /// Output helper for consistent formatting
 pub struct Output {
     format: OutputFormat,
+    verbose: bool,
 }
 
 impl Output {
-    pub fn new(format: OutputFormat) -> Self {
-        Self { format }
+    pub fn new(format: OutputFormat, verbose: bool) -> Self {
+        Self { format, verbose }
     }
 
     /// Prints a success message
@@ -92,6 +93,25 @@ impl Output {
     /// Returns true if using text format
     pub fn is_text(&self) -> bool {
         self.format == OutputFormat::Text
+    }
+
+    /// Returns true if verbose mode is enabled
+    pub fn is_verbose(&self) -> bool {
+        self.verbose
+    }
+
+    /// Prints a verbose debug message (only when --verbose is set)
+    pub fn verbose(&self, message: &str) {
+        if self.verbose {
+            eprintln!("[verbose] {}", message);
+        }
+    }
+
+    /// Prints a verbose debug message with context (only when --verbose is set)
+    pub fn verbose_ctx(&self, context: &str, message: &str) {
+        if self.verbose {
+            eprintln!("[verbose:{}] {}", context, message);
+        }
     }
 }
 

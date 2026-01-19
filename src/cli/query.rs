@@ -11,14 +11,20 @@ use crate::storage::Project;
 /// Show tasks ready to work on
 pub fn ready(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
     let project = Project::open_current()?;
+    output.verbose_ctx("ready", &format!("Opened project at: {}", project.root().display()));
+
     let task_store = project.task_store();
+    output.verbose_ctx("ready", &format!("Task store path: {}", task_store.path().display()));
 
     let tasks = if let Some(anchor_str) = anchor_filter {
         let anchor_id: AnchorId = anchor_str.parse()?;
+        output.verbose_ctx("ready", &format!("Filtering by anchor: {}", anchor_id));
         task_store.read_for_anchor(&anchor_id)?
     } else {
         task_store.read_all()?
     };
+
+    output.verbose_ctx("ready", &format!("Loaded {} tasks", tasks.len()));
 
     // Build status map
     let statuses: HashMap<TaskId, TaskStatus> = tasks
@@ -28,9 +34,11 @@ pub fn ready(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
 
     // Build dependency graph
     let graph = DependencyGraph::from_tasks(tasks.values())?;
+    output.verbose_ctx("ready", &format!("Built dependency graph with {} nodes", graph.len()));
 
     // Find ready tasks
     let ready_ids = graph.ready_tasks(&statuses);
+    output.verbose_ctx("ready", &format!("Found {} ready tasks", ready_ids.len()));
     let ready_tasks: Vec<_> = ready_ids
         .iter()
         .filter_map(|id| tasks.get(id))
@@ -48,16 +56,14 @@ pub fn ready(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
             })
             .collect();
         output.data(&items);
+    } else if ready_tasks.is_empty() {
+        println!("No tasks ready to work on.");
     } else {
-        if ready_tasks.is_empty() {
-            println!("No tasks ready to work on.");
-        } else {
-            println!("Ready tasks ({}):", ready_tasks.len());
-            println!("{:<20} {}", "ID", "TITLE");
-            println!("{}", "-".repeat(60));
-            for task in ready_tasks {
-                println!("{:<20} {}", task.id, task.title);
-            }
+        println!("Ready tasks ({}):", ready_tasks.len());
+        println!("{:<20} TITLE", "ID");
+        println!("{}", "-".repeat(60));
+        for task in ready_tasks {
+            println!("{:<20} {}", task.id, task.title);
         }
     }
 
@@ -67,14 +73,19 @@ pub fn ready(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
 /// Show blocked tasks
 pub fn blocked(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
     let project = Project::open_current()?;
+    output.verbose_ctx("blocked", &format!("Opened project at: {}", project.root().display()));
+
     let task_store = project.task_store();
 
     let tasks = if let Some(anchor_str) = anchor_filter {
         let anchor_id: AnchorId = anchor_str.parse()?;
+        output.verbose_ctx("blocked", &format!("Filtering by anchor: {}", anchor_id));
         task_store.read_for_anchor(&anchor_id)?
     } else {
         task_store.read_all()?
     };
+
+    output.verbose_ctx("blocked", &format!("Loaded {} tasks", tasks.len()));
 
     // Build status map
     let statuses: HashMap<TaskId, TaskStatus> = tasks
@@ -84,9 +95,11 @@ pub fn blocked(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
 
     // Build dependency graph
     let graph = DependencyGraph::from_tasks(tasks.values())?;
+    output.verbose_ctx("blocked", &format!("Built dependency graph with {} nodes", graph.len()));
 
     // Find blocked tasks
     let blocked_ids = graph.blocked_tasks(&statuses);
+    output.verbose_ctx("blocked", &format!("Found {} blocked tasks", blocked_ids.len()));
     let blocked_tasks: Vec<_> = blocked_ids
         .iter()
         .filter_map(|id| tasks.get(id))
@@ -110,22 +123,20 @@ pub fn blocked(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
             })
             .collect();
         output.data(&items);
+    } else if blocked_tasks.is_empty() {
+        println!("No blocked tasks.");
     } else {
-        if blocked_tasks.is_empty() {
-            println!("No blocked tasks.");
-        } else {
-            println!("Blocked tasks ({}):", blocked_tasks.len());
-            println!("{:<20} {:<30} {}", "ID", "TITLE", "BLOCKED BY");
-            println!("{}", "-".repeat(80));
-            for task in blocked_tasks {
-                let blocking: Vec<_> = task.depends_on
-                    .iter()
-                    .filter(|dep| !statuses.get(*dep).map(|s| s.is_complete()).unwrap_or(false))
-                    .map(|d| d.to_string())
-                    .collect();
+        println!("Blocked tasks ({}):", blocked_tasks.len());
+        println!("{:<20} {:<30} BLOCKED BY", "ID", "TITLE");
+        println!("{}", "-".repeat(80));
+        for task in blocked_tasks {
+            let blocking: Vec<_> = task.depends_on
+                .iter()
+                .filter(|dep| !statuses.get(*dep).map(|s| s.is_complete()).unwrap_or(false))
+                .map(|d| d.to_string())
+                .collect();
 
-                println!("{:<20} {:<30} {}", task.id, task.title, blocking.join(", "));
-            }
+            println!("{:<20} {:<30} {}", task.id, task.title, blocking.join(", "));
         }
     }
 

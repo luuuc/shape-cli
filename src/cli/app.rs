@@ -16,6 +16,10 @@ pub struct Cli {
     #[arg(long, short = 'f', global = true, default_value = "text")]
     pub format: OutputFormat,
 
+    /// Enable verbose output for debugging
+    #[arg(long, short = 'v', global = true)]
+    pub verbose: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -69,14 +73,6 @@ pub enum Commands {
         days: u32,
     },
 
-    /// Manage plugins
-    #[command(subcommand)]
-    Plugin(plugin_cmd::PluginCommands),
-
-    /// Sync with external tools
-    #[command(subcommand)]
-    Sync(sync_cmd::SyncCommands),
-
     /// Configure AI agent integration
     AgentSetup {
         /// Preview instructions without writing to files
@@ -95,37 +91,70 @@ pub enum Commands {
         #[arg(long)]
         windsurf: bool,
     },
+
+    /// Advanced commands (plugins, sync)
+    #[command(subcommand)]
+    Advanced(AdvancedCommands),
+}
+
+/// Advanced commands for plugins and external sync
+#[derive(Subcommand)]
+pub enum AdvancedCommands {
+    /// Manage plugins
+    #[command(subcommand)]
+    Plugin(plugin_cmd::PluginCommands),
+
+    /// Sync with external tools
+    #[command(subcommand)]
+    Sync(sync_cmd::SyncCommands),
 }
 
 /// Main entry point for the CLI
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
-    let output = Output::new(cli.format);
+    let output = Output::new(cli.format, cli.verbose);
+
+    output.verbose("Shape CLI starting");
 
     match cli.command {
         Commands::Init { path } => {
+            output.verbose_ctx("init", &format!("Initializing project at: {}", path));
             let project = Project::init(&path)?;
+            output.verbose_ctx("init", &format!("Created .shape directory at: {}", project.shape_dir().display()));
             output.success(&format!("Initialized shape project at {}", project.root().display()));
         }
 
         Commands::Anchor(cmd) => anchor::run(cmd, &output)?,
         Commands::Task(cmd) => task::run(cmd, &output)?,
 
-        Commands::Ready { anchor } => query::ready(&output, anchor.as_deref())?,
-        Commands::Blocked { anchor } => query::blocked(&output, anchor.as_deref())?,
-        Commands::Status => query::status(&output)?,
-
-        Commands::Context { compact, anchor, days } => {
-            context::export(&output, compact, anchor.as_deref(), days)?
+        Commands::Ready { anchor } => {
+            output.verbose_ctx("ready", &format!("Querying ready tasks, anchor filter: {:?}", anchor));
+            query::ready(&output, anchor.as_deref())?
+        }
+        Commands::Blocked { anchor } => {
+            output.verbose_ctx("blocked", &format!("Querying blocked tasks, anchor filter: {:?}", anchor));
+            query::blocked(&output, anchor.as_deref())?
+        }
+        Commands::Status => {
+            output.verbose("Gathering project status");
+            query::status(&output)?
         }
 
-        Commands::Plugin(cmd) => plugin_cmd::run(cmd, &output)?,
-        Commands::Sync(cmd) => sync_cmd::run(cmd, &output)?,
+        Commands::Context { compact, anchor, days } => {
+            output.verbose_ctx("context", &format!("Exporting context: compact={}, anchor={:?}, days={}", compact, anchor, days));
+            context::export(&output, compact, anchor.as_deref(), days)?
+        }
 
         Commands::AgentSetup { show, claude, cursor, windsurf } => {
             agent_setup::run(&output, show, claude, cursor, windsurf)?
         }
+
+        Commands::Advanced(advanced_cmd) => match advanced_cmd {
+            AdvancedCommands::Plugin(cmd) => plugin_cmd::run(cmd, &output)?,
+            AdvancedCommands::Sync(cmd) => sync_cmd::run(cmd, &output)?,
+        },
     }
 
+    output.verbose("Command completed successfully");
     Ok(())
 }

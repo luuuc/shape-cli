@@ -127,7 +127,7 @@ impl TaskId {
         }
     }
 
-    /// Returns the sequence segments (e.g., [1] for task, [1, 2] for subtask)
+    /// Returns the sequence segments (e.g., `[1]` for task, `[1, 2]` for subtask)
     pub fn segments(&self) -> &[u32] {
         &self.segments
     }

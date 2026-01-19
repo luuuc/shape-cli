@@ -228,16 +228,27 @@ impl AnchorStore {
         Ok(fm.into_anchor(body.to_string()))
     }
 
-    /// Writes an anchor to its file
+    /// Writes an anchor to its file atomically (temp file + rename)
     fn write_to_file(&self, anchor: &Anchor) -> Result<()> {
         fs::create_dir_all(&self.dir)
             .with_context(|| format!("Failed to create directory: {}", self.dir.display()))?;
 
         let path = self.anchor_path(&anchor.id);
+        let temp_path = path.with_extension("md.tmp");
         let content = self.render_markdown(anchor)?;
 
-        fs::write(&path, content)
-            .with_context(|| format!("Failed to write anchor file: {}", path.display()))?;
+        // Write to temp file first
+        fs::write(&temp_path, &content)
+            .with_context(|| format!("Failed to write temp file: {}", temp_path.display()))?;
+
+        // Atomic rename
+        fs::rename(&temp_path, &path).with_context(|| {
+            format!(
+                "Failed to rename {} to {}",
+                temp_path.display(),
+                path.display()
+            )
+        })?;
 
         Ok(())
     }
@@ -491,5 +502,21 @@ mod tests {
         assert_eq!(loaded.status, anchor.status);
         assert_eq!(loaded.body, anchor.body);
         assert_eq!(loaded.get_meta("appetite"), anchor.get_meta("appetite"));
+    }
+
+    #[test]
+    fn atomic_write_no_temp_file_left() {
+        let dir = TempDir::new().unwrap();
+        let store = AnchorStore::new(dir.path().join("anchors"));
+
+        let anchor = Anchor::new("Atomic Test", "minimal");
+        store.write(&anchor).unwrap();
+
+        // Temp file should not exist after write
+        let temp_path = store.anchor_path(&anchor.id).with_extension("md.tmp");
+        assert!(!temp_path.exists(), "Temp file should be removed after atomic write");
+
+        // Actual file should exist
+        assert!(store.anchor_path(&anchor.id).exists());
     }
 }

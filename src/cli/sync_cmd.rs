@@ -169,7 +169,7 @@ fn sync_status(output: &Output) -> Result<()> {
         }));
     } else {
         println!("Sync Status:");
-        println!("{:<25} {:<10} {:<10} {}", "PLUGIN", "ANCHORS", "TASKS", "LAST SYNC");
+        println!("{:<25} {:<10} {:<10} LAST SYNC", "PLUGIN", "ANCHORS", "TASKS");
         println!("{}", "-".repeat(70));
 
         for status in statuses {

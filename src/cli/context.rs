@@ -12,15 +12,21 @@ use crate::storage::Project;
 /// Export project context for AI consumption
 pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days: u32) -> Result<()> {
     let project = Project::open_current()?;
+    output.verbose_ctx("context", &format!("Opened project at: {}", project.root().display()));
+
     let anchor_store = project.anchor_store();
     let task_store = project.task_store();
 
     let anchors = anchor_store.read_all()?;
     let tasks = task_store.read_all()?;
 
+    output.verbose_ctx("context", &format!("Loaded {} anchors, {} tasks", anchors.len(), tasks.len()));
+
     // Filter by anchor if specified
     let (anchors, tasks) = if let Some(anchor_str) = anchor_filter {
         let anchor_id: AnchorId = anchor_str.parse()?;
+        output.verbose_ctx("context", &format!("Filtering by anchor: {}", anchor_id));
+
         let anchor = anchors
             .get(&anchor_id)
             .ok_or_else(|| anyhow::anyhow!("Anchor not found: {}", anchor_id))?;
@@ -29,6 +35,8 @@ pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days:
             .into_iter()
             .filter(|(_, t)| t.anchor_id() == anchor_id)
             .collect();
+
+        output.verbose_ctx("context", &format!("Filtered to {} tasks for anchor", filtered_tasks.len()));
 
         let mut filtered_anchors = HashMap::new();
         filtered_anchors.insert(anchor_id.clone(), anchor.clone());
@@ -65,6 +73,11 @@ pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days:
         .values()
         .filter(|t| t.status.is_active())
         .collect();
+
+    output.verbose_ctx("context", &format!(
+        "Context summary: {} ready, {} blocked, {} in_progress, {} recently_completed",
+        ready_ids.len(), blocked_ids.len(), in_progress.len(), recent_completed.len()
+    ));
 
     if compact {
         // Compact format - minimal tokens
@@ -118,6 +131,7 @@ fn export_compact(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn export_full(
     output: &Output,
     anchors: &HashMap<AnchorId, crate::domain::Anchor>,

@@ -124,15 +124,13 @@ fn list_anchors(output: &Output, status_filter: Option<&str>) -> Result<()> {
             })
             .collect();
         output.data(&items);
+    } else if list.is_empty() {
+        println!("No anchors found.");
     } else {
-        if list.is_empty() {
-            println!("No anchors found.");
-        } else {
-            println!("{:<12} {:<15} {}", "ID", "STATUS", "TITLE");
-            println!("{}", "-".repeat(60));
-            for (id, title, status) in list {
-                println!("{:<12} {:<15} {}", id, status, title);
-            }
+        println!("{:<12} {:<15} TITLE", "ID", "STATUS");
+        println!("{}", "-".repeat(60));
+        for (id, title, status) in list {
+            println!("{:<12} {:<15} {}", id, status, title);
         }
     }
 

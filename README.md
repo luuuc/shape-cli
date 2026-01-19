@@ -35,14 +35,19 @@ shape context --compact
 | `shape anchor show <id>` | Show anchor details |
 | `shape anchor status <id> <status>` | Update anchor status |
 | `shape task add <parent> "Title"` | Add a task |
+| `shape task list <anchor>` | List tasks for an anchor |
+| `shape task show <id>` | Show task details |
 | `shape task start <id>` | Mark task in progress |
 | `shape task done <id>` | Mark task complete |
 | `shape task dep <task> <depends-on>` | Add dependency |
+| `shape task undep <task> <depends-on>` | Remove dependency |
+| `shape task meta <id> <key> <value>` | Set task metadata |
 | `shape ready` | Show unblocked tasks |
 | `shape blocked` | Show blocked tasks |
 | `shape status` | Project overview |
 | `shape context` | Export for AI |
 | `shape plugin list` | List plugins |
+| `shape plugin test <name>` | Test plugin connectivity |
 | `shape sync run <plugin>` | Sync with external tool |
 | `shape sync status` | Show sync status |
 | `shape sync link <local> <remote>` | Link IDs manually |

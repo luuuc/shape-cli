@@ -49,20 +49,18 @@ fn list_plugins(output: &Output) -> Result<()> {
             })
             .collect();
         output.data(&items);
+    } else if plugins.is_empty() {
+        println!("No plugins found.");
+        println!();
+        println!("Plugins are discovered from:");
+        println!("  - PATH (executables starting with 'shape-')");
+        println!("  - .shape/plugins/ directory");
     } else {
-        if plugins.is_empty() {
-            println!("No plugins found.");
-            println!();
-            println!("Plugins are discovered from:");
-            println!("  - PATH (executables starting with 'shape-')");
-            println!("  - .shape/plugins/ directory");
-        } else {
-            println!("Available plugins:");
-            println!("{:<30} {}", "NAME", "PATH");
-            println!("{}", "-".repeat(70));
-            for plugin in plugins {
-                println!("{:<30} {}", plugin.name, plugin.path.display());
-            }
+        println!("Available plugins:");
+        println!("{:<30} PATH", "NAME");
+        println!("{}", "-".repeat(70));
+        for plugin in plugins {
+            println!("{:<30} {}", plugin.name, plugin.path.display());
         }
     }
 

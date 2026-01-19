@@ -1,0 +1,699 @@
+//! CLI integration tests for Shape
+//!
+//! These tests verify the complete workflow from initialization through
+//! task management, ensuring commands work together correctly.
+
+use assert_cmd::Command;
+use predicates::prelude::*;
+use std::fs;
+use tempfile::TempDir;
+
+/// Get a command instance for the shape binary
+fn shape_cmd() -> Command {
+    Command::cargo_bin("shape").unwrap()
+}
+
+/// Create a temporary directory and initialize a shape project
+fn setup_project() -> TempDir {
+    let dir = TempDir::new().unwrap();
+    shape_cmd()
+        .arg("init")
+        .arg(dir.path())
+        .assert()
+        .success();
+    dir
+}
+
+// =============================================================================
+// Initialization Tests
+// =============================================================================
+
+#[test]
+fn test_init_creates_structure() {
+    let dir = TempDir::new().unwrap();
+
+    shape_cmd()
+        .arg("init")
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Initialized shape project"));
+
+    // Verify directory structure
+    assert!(dir.path().join(".shape").is_dir());
+    assert!(dir.path().join(".shape/anchors").is_dir());
+    assert!(dir.path().join(".shape/plugins").is_dir());
+    assert!(dir.path().join(".shape/sync").is_dir());
+    assert!(dir.path().join(".shape/config.toml").is_file());
+    assert!(dir.path().join(".shape/.gitignore").is_file());
+}
+
+#[test]
+fn test_init_is_idempotent() {
+    let dir = TempDir::new().unwrap();
+
+    // First init
+    shape_cmd()
+        .arg("init")
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    // Second init should also succeed
+    shape_cmd()
+        .arg("init")
+        .arg(dir.path())
+        .assert()
+        .success();
+}
+
+// =============================================================================
+// Anchor Tests
+// =============================================================================
+
+#[test]
+fn test_anchor_new_creates_anchor() {
+    let dir = setup_project();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "Test Pitch"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created anchor"));
+
+    // Verify anchor file was created
+    let anchors: Vec<_> = fs::read_dir(dir.path().join(".shape/anchors"))
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().map(|ext| ext == "md").unwrap_or(false))
+        .collect();
+
+    assert_eq!(anchors.len(), 1);
+}
+
+#[test]
+fn test_anchor_list_shows_anchors() {
+    let dir = setup_project();
+
+    // Create an anchor
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "My Test Anchor"])
+        .assert()
+        .success();
+
+    // List should show it
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("My Test Anchor"));
+}
+
+#[test]
+fn test_anchor_show_displays_details() {
+    let dir = setup_project();
+
+    // Create anchor and capture the ID
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "Detail Test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let anchor_id = json["id"].as_str().unwrap();
+
+    // Show should display the anchor
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "show", anchor_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Detail Test"));
+}
+
+// =============================================================================
+// Task Tests
+// =============================================================================
+
+#[test]
+fn test_task_add_creates_task() {
+    let dir = setup_project();
+
+    // Create anchor
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "Task Test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let anchor_id = json["id"].as_str().unwrap();
+
+    // Add task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "My First Task"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created task"));
+}
+
+#[test]
+fn test_task_list_shows_tasks() {
+    let dir = setup_project();
+
+    // Create anchor
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "List Test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let anchor_id = json["id"].as_str().unwrap();
+
+    // Add tasks
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "Task One"])
+        .assert()
+        .success();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "Task Two"])
+        .assert()
+        .success();
+
+    // List should show both
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "list", anchor_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Task One"))
+        .stdout(predicate::str::contains("Task Two"));
+}
+
+#[test]
+fn test_task_start_and_done() {
+    let dir = setup_project();
+
+    // Create anchor and task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "Status Test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let anchor_id = json["id"].as_str().unwrap();
+
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "Status Task", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let task_id = json["id"].as_str().unwrap();
+
+    // Start task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "start", task_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Started task"));
+
+    // Complete task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "done", task_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Completed task"));
+}
+
+// =============================================================================
+// Dependency Tests
+// =============================================================================
+
+#[test]
+fn test_task_dependencies() {
+    let dir = setup_project();
+
+    // Create anchor
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "Dep Test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let anchor_id = json["id"].as_str().unwrap();
+
+    // Create two tasks
+    let output1 = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "First Task", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout1 = String::from_utf8_lossy(&output1.get_output().stdout);
+    let json1: serde_json::Value = serde_json::from_str(&stdout1).unwrap();
+    let task1_id = json1["id"].as_str().unwrap();
+
+    let output2 = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "Second Task", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout2 = String::from_utf8_lossy(&output2.get_output().stdout);
+    let json2: serde_json::Value = serde_json::from_str(&stdout2).unwrap();
+    let task2_id = json2["id"].as_str().unwrap();
+
+    // Add dependency: task2 depends on task1
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "dep", task2_id, task1_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("now depends on"));
+
+    // Check blocked shows task2
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["blocked"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Second Task"));
+
+    // Check ready shows task1 but not task2
+    let ready_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["ready"])
+        .assert()
+        .success();
+
+    let ready_stdout = String::from_utf8_lossy(&ready_output.get_output().stdout);
+    assert!(ready_stdout.contains("First Task"));
+    assert!(!ready_stdout.contains("Second Task"));
+}
+
+// =============================================================================
+// Ready/Blocked Query Tests
+// =============================================================================
+
+#[test]
+fn test_ready_shows_unblocked_tasks() {
+    let dir = setup_project();
+
+    // Create anchor and tasks
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "Ready Test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let anchor_id = json["id"].as_str().unwrap();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "Ready Task"])
+        .assert()
+        .success();
+
+    // Ready should show the task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["ready"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Ready Task"));
+}
+
+#[test]
+fn test_ready_json_format() {
+    let dir = setup_project();
+
+    // Create anchor and task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "JSON Test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let anchor_id = json["id"].as_str().unwrap();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "JSON Task"])
+        .assert()
+        .success();
+
+    // Ready with JSON format
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["ready", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    assert!(json.is_array());
+    let tasks = json.as_array().unwrap();
+    assert!(!tasks.is_empty());
+    assert!(tasks[0]["title"].as_str().unwrap().contains("JSON Task"));
+}
+
+// =============================================================================
+// Status Tests
+// =============================================================================
+
+#[test]
+fn test_status_shows_overview() {
+    let dir = setup_project();
+
+    // Create anchor and task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "Status Overview Test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let anchor_id = json["id"].as_str().unwrap();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "Status Task"])
+        .assert()
+        .success();
+
+    // Status should show counts
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["status"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Project Status"))
+        .stdout(predicate::str::contains("Anchors:"))
+        .stdout(predicate::str::contains("Tasks:"));
+}
+
+// =============================================================================
+// Context Export Tests
+// =============================================================================
+
+#[test]
+fn test_context_export() {
+    let dir = setup_project();
+
+    // Create anchor and task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "Context Test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let anchor_id = json["id"].as_str().unwrap();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "Context Task"])
+        .assert()
+        .success();
+
+    // Context export
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["context"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    assert!(json["anchors"].is_array());
+    assert!(json["tasks"].is_object());
+}
+
+#[test]
+fn test_context_compact() {
+    let dir = setup_project();
+
+    // Create anchor and task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "Compact Test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let anchor_id = json["id"].as_str().unwrap();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "Compact Task"])
+        .assert()
+        .success();
+
+    // Compact context
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["context", "--compact"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    // Compact format has specific structure
+    assert!(json["anchors"].is_array());
+    assert!(json["ready"].is_array());
+    assert!(json["in_progress"].is_array());
+    assert!(json["blocked"].is_array());
+    assert!(json["recently_done"].is_array());
+}
+
+// =============================================================================
+// Verbose Flag Tests
+// =============================================================================
+
+#[test]
+fn test_verbose_flag() {
+    let dir = setup_project();
+
+    // Verbose should show debug output to stderr
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["--verbose", "status"])
+        .assert()
+        .success();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(stderr.contains("[verbose]"));
+}
+
+// =============================================================================
+// Error Handling Tests
+// =============================================================================
+
+#[test]
+fn test_not_in_project_error() {
+    let dir = TempDir::new().unwrap();
+
+    // Running commands without init should fail
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["ready"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Not in a shape project"));
+}
+
+#[test]
+fn test_anchor_invalid_id_error() {
+    let dir = setup_project();
+
+    // Invalid ID format should fail
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "show", "a-nonexistent"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Invalid anchor ID"));
+}
+
+#[test]
+fn test_anchor_not_found_error() {
+    let dir = setup_project();
+
+    // Valid ID format but doesn't exist
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "show", "a-1234567"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("not found").or(predicate::str::contains("Not found")));
+}
+
+// =============================================================================
+// Full Workflow Integration Test
+// =============================================================================
+
+#[test]
+fn test_full_workflow() {
+    let dir = setup_project();
+
+    // 1. Create an anchor
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "Full Workflow Test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let anchor_id = json["id"].as_str().unwrap();
+
+    // 2. Add multiple tasks
+    let output1 = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "Build API", "--format", "json"])
+        .assert()
+        .success();
+    let task1_id = serde_json::from_str::<serde_json::Value>(
+        &String::from_utf8_lossy(&output1.get_output().stdout)
+    ).unwrap()["id"].as_str().unwrap().to_string();
+
+    let output2 = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "Write Tests", "--format", "json"])
+        .assert()
+        .success();
+    let task2_id = serde_json::from_str::<serde_json::Value>(
+        &String::from_utf8_lossy(&output2.get_output().stdout)
+    ).unwrap()["id"].as_str().unwrap().to_string();
+
+    let output3 = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "Deploy", "--format", "json"])
+        .assert()
+        .success();
+    let task3_id = serde_json::from_str::<serde_json::Value>(
+        &String::from_utf8_lossy(&output3.get_output().stdout)
+    ).unwrap()["id"].as_str().unwrap().to_string();
+
+    // 3. Set up dependencies: Tests depend on API, Deploy depends on Tests
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "dep", &task2_id, &task1_id])
+        .assert()
+        .success();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "dep", &task3_id, &task2_id])
+        .assert()
+        .success();
+
+    // 4. Verify only API is ready initially
+    let ready_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["ready", "--format", "json"])
+        .assert()
+        .success();
+
+    let ready_json: serde_json::Value = serde_json::from_str(
+        &String::from_utf8_lossy(&ready_output.get_output().stdout)
+    ).unwrap();
+    let ready_tasks = ready_json.as_array().unwrap();
+    assert_eq!(ready_tasks.len(), 1);
+    assert!(ready_tasks[0]["title"].as_str().unwrap().contains("Build API"));
+
+    // 5. Start and complete API task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "start", &task1_id])
+        .assert()
+        .success();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "done", &task1_id])
+        .assert()
+        .success();
+
+    // 6. Now Tests should be ready
+    let ready_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["ready", "--format", "json"])
+        .assert()
+        .success();
+
+    let ready_json: serde_json::Value = serde_json::from_str(
+        &String::from_utf8_lossy(&ready_output.get_output().stdout)
+    ).unwrap();
+    let ready_tasks = ready_json.as_array().unwrap();
+    assert_eq!(ready_tasks.len(), 1);
+    assert!(ready_tasks[0]["title"].as_str().unwrap().contains("Write Tests"));
+
+    // 7. Complete remaining tasks
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "done", &task2_id])
+        .assert()
+        .success();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "done", &task3_id])
+        .assert()
+        .success();
+
+    // 8. Verify status shows all complete
+    let status_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["status", "--format", "json"])
+        .assert()
+        .success();
+
+    let status_json: serde_json::Value = serde_json::from_str(
+        &String::from_utf8_lossy(&status_output.get_output().stdout)
+    ).unwrap();
+    assert_eq!(status_json["tasks"]["done"].as_u64().unwrap(), 3);
+
+    // 9. Context should show recently completed
+    let context_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["context", "--compact"])
+        .assert()
+        .success();
+
+    let context_json: serde_json::Value = serde_json::from_str(
+        &String::from_utf8_lossy(&context_output.get_output().stdout)
+    ).unwrap();
+    assert!(context_json["recently_done"].as_array().unwrap().len() >= 3);
+}

@@ -166,25 +166,23 @@ fn list_tasks(output: &Output, anchor_str: &str) -> Result<()> {
             })
             .collect();
         output.data(&items);
+    } else if tasks.is_empty() {
+        println!("No tasks for anchor {}", anchor_id);
     } else {
-        if tasks.is_empty() {
-            println!("No tasks for anchor {}", anchor_id);
-        } else {
-            println!("{:<20} {:<12} {}", "ID", "STATUS", "TITLE");
-            println!("{}", "-".repeat(60));
+        println!("{:<20} {:<12} TITLE", "ID", "STATUS");
+        println!("{}", "-".repeat(60));
 
-            // Sort by ID
-            let mut sorted: Vec<_> = tasks.values().collect();
-            sorted.sort_by(|a, b| a.id.to_string().cmp(&b.id.to_string()));
+        // Sort by ID
+        let mut sorted: Vec<_> = tasks.values().collect();
+        sorted.sort_by(|a, b| a.id.to_string().cmp(&b.id.to_string()));
 
-            for task in sorted {
-                let status = match task.status {
-                    TaskStatus::Todo => "todo",
-                    TaskStatus::InProgress => "in_progress",
-                    TaskStatus::Done => "done",
-                };
-                println!("{:<20} {:<12} {}", task.id, status, task.title);
-            }
+        for task in sorted {
+            let status = match task.status {
+                TaskStatus::Todo => "todo",
+                TaskStatus::InProgress => "in_progress",
+                TaskStatus::Done => "done",
+            };
+            println!("{:<20} {:<12} {}", task.id, status, task.title);
         }
     }
 
