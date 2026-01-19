@@ -75,7 +75,16 @@ impl TaskStore {
         let all = self.read_all()?;
         Ok(all
             .into_iter()
-            .filter(|(_, task)| &task.anchor_id() == anchor_id)
+            .filter(|(_, task)| task.anchor_id().as_ref() == Some(anchor_id))
+            .collect())
+    }
+
+    /// Reads all standalone tasks (tasks not belonging to any anchor)
+    pub fn read_standalone(&self) -> Result<HashMap<TaskId, Task>> {
+        let all = self.read_all()?;
+        Ok(all
+            .into_iter()
+            .filter(|(_, task)| task.is_standalone())
             .collect())
     }
 

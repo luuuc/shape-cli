@@ -33,7 +33,7 @@ pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days:
 
         let filtered_tasks: HashMap<_, _> = tasks
             .into_iter()
-            .filter(|(_, t)| t.anchor_id() == anchor_id)
+            .filter(|(_, t)| t.anchor_id().as_ref() == Some(&anchor_id))
             .collect();
 
         output.verbose_ctx("context", &format!("Filtered to {} tasks for anchor", filtered_tasks.len()));
@@ -79,15 +79,22 @@ pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days:
         ready_ids.len(), blocked_ids.len(), in_progress.len(), recent_completed.len()
     ));
 
+    // Collect standalone tasks
+    let standalone_tasks: Vec<_> = tasks
+        .values()
+        .filter(|t| t.is_standalone())
+        .collect();
+
     if compact {
         // Compact format - minimal tokens
-        export_compact(output, &anchors, &tasks, &ready_ids, &blocked_ids, &in_progress, &recent_completed)
+        export_compact(output, &anchors, &tasks, &ready_ids, &blocked_ids, &in_progress, &recent_completed, &standalone_tasks)
     } else {
         // Full format
-        export_full(output, &anchors, &tasks, &ready_ids, &blocked_ids, &in_progress, &recent_completed, &statuses)
+        export_full(output, &anchors, &tasks, &ready_ids, &blocked_ids, &in_progress, &recent_completed, &statuses, &standalone_tasks)
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn export_compact(
     output: &Output,
     anchors: &HashMap<AnchorId, crate::domain::Anchor>,
@@ -96,7 +103,30 @@ fn export_compact(
     blocked_ids: &[TaskId],
     in_progress: &[&crate::domain::Task],
     recent_completed: &[&crate::domain::Task],
+    standalone_tasks: &[&crate::domain::Task],
 ) -> Result<()> {
+    // Separate standalone tasks by status for the standalone_tasks section
+    let standalone_ready: Vec<_> = standalone_tasks
+        .iter()
+        .filter(|t| ready_ids.contains(&t.id))
+        .map(|t| format!("{}: {}", t.id, t.title))
+        .collect();
+
+    let standalone_in_progress: Vec<_> = standalone_tasks
+        .iter()
+        .filter(|t| t.status.is_active())
+        .map(|t| format!("{}: {}", t.id, t.title))
+        .collect();
+
+    let standalone_blocked: Vec<_> = standalone_tasks
+        .iter()
+        .filter(|t| blocked_ids.contains(&t.id))
+        .map(|t| {
+            let deps: Vec<_> = t.depends_on.iter().map(|d| d.to_string()).collect();
+            format!("{}: {} (blocked by {})", t.id, t.title, deps.join(", "))
+        })
+        .collect();
+
     // Compact format: optimized for token efficiency
     let context = serde_json::json!({
         "anchors": anchors.values().map(|a| {
@@ -125,6 +155,12 @@ fn export_compact(
         "recently_done": recent_completed.iter().map(|t| {
             format!("{}: {}", t.id, t.title)
         }).collect::<Vec<_>>(),
+
+        "standalone_tasks": {
+            "ready": standalone_ready,
+            "in_progress": standalone_in_progress,
+            "blocked": standalone_blocked,
+        },
     });
 
     output.data(&context);
@@ -141,7 +177,62 @@ fn export_full(
     in_progress: &[&crate::domain::Task],
     recent_completed: &[&crate::domain::Task],
     statuses: &HashMap<TaskId, TaskStatus>,
+    standalone_tasks: &[&crate::domain::Task],
 ) -> Result<()> {
+    // Separate standalone tasks by status
+    let standalone_ready: Vec<_> = standalone_tasks
+        .iter()
+        .filter(|t| ready_ids.contains(&t.id))
+        .map(|t| {
+            serde_json::json!({
+                "id": t.id.to_string(),
+                "title": t.title,
+                "description": t.description,
+                "meta": t.meta,
+            })
+        })
+        .collect();
+
+    let standalone_in_progress: Vec<_> = standalone_tasks
+        .iter()
+        .filter(|t| t.status.is_active())
+        .map(|t| {
+            serde_json::json!({
+                "id": t.id.to_string(),
+                "title": t.title,
+                "started_at": t.updated_at,
+                "description": t.description,
+                "meta": t.meta,
+            })
+        })
+        .collect();
+
+    let standalone_blocked: Vec<_> = standalone_tasks
+        .iter()
+        .filter(|t| blocked_ids.contains(&t.id))
+        .map(|t| {
+            let blocking: Vec<_> = t.depends_on.iter().filter_map(|dep_id| {
+                if !statuses.get(dep_id).map(|s| s.is_complete()).unwrap_or(false) {
+                    tasks.get(dep_id).map(|dep| {
+                        serde_json::json!({
+                            "id": dep.id.to_string(),
+                            "title": dep.title,
+                            "status": dep.status,
+                        })
+                    })
+                } else {
+                    None
+                }
+            }).collect();
+
+            serde_json::json!({
+                "id": t.id.to_string(),
+                "title": t.title,
+                "blocked_by": blocking,
+            })
+        })
+        .collect();
+
     // Full format: more detail for comprehensive understanding
     let context = serde_json::json!({
         "anchors": anchors.values().map(|a| {
@@ -165,7 +256,8 @@ fn export_full(
                     serde_json::json!({
                         "id": t.id.to_string(),
                         "title": t.title,
-                        "anchor": t.anchor_id().to_string(),
+                        "standalone": t.is_standalone(),
+                        "anchor": t.anchor_id().map(|a| a.to_string()),
                         "description": t.description,
                         "meta": t.meta,
                     })
@@ -176,7 +268,8 @@ fn export_full(
                 serde_json::json!({
                     "id": t.id.to_string(),
                     "title": t.title,
-                    "anchor": t.anchor_id().to_string(),
+                    "standalone": t.is_standalone(),
+                    "anchor": t.anchor_id().map(|a| a.to_string()),
                     "started_at": t.updated_at,
                     "description": t.description,
                     "meta": t.meta,
@@ -202,7 +295,8 @@ fn export_full(
                     serde_json::json!({
                         "id": t.id.to_string(),
                         "title": t.title,
-                        "anchor": t.anchor_id().to_string(),
+                        "standalone": t.is_standalone(),
+                        "anchor": t.anchor_id().map(|a| a.to_string()),
                         "blocked_by": blocking,
                     })
                 })
@@ -212,15 +306,23 @@ fn export_full(
                 serde_json::json!({
                     "id": t.id.to_string(),
                     "title": t.title,
-                    "anchor": t.anchor_id().to_string(),
+                    "standalone": t.is_standalone(),
+                    "anchor": t.anchor_id().map(|a| a.to_string()),
                     "completed_at": t.completed_at,
                 })
             }).collect::<Vec<_>>(),
         },
 
+        "standalone_tasks": {
+            "ready": standalone_ready,
+            "in_progress": standalone_in_progress,
+            "blocked": standalone_blocked,
+        },
+
         "summary": {
             "total_anchors": anchors.len(),
             "total_tasks": tasks.len(),
+            "standalone_tasks": standalone_tasks.len(),
             "ready_count": ready_ids.len(),
             "blocked_count": blocked_ids.len(),
             "in_progress_count": in_progress.len(),

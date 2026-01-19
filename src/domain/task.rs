@@ -124,9 +124,14 @@ impl Task {
         }
     }
 
-    /// Returns the anchor ID this task belongs to
-    pub fn anchor_id(&self) -> AnchorId {
+    /// Returns the anchor ID this task belongs to, or None if standalone
+    pub fn anchor_id(&self) -> Option<AnchorId> {
         self.id.anchor_id()
+    }
+
+    /// Returns true if this is a standalone task (not belonging to an anchor)
+    pub fn is_standalone(&self) -> bool {
+        self.id.is_standalone()
     }
 
     /// Returns true if this task has no incomplete dependencies
@@ -347,7 +352,17 @@ mod tests {
         let task_id = TaskId::new(&anchor, 1);
         let task = Task::new(task_id, "Task 1");
 
-        assert_eq!(task.anchor_id(), anchor);
+        assert_eq!(task.anchor_id(), Some(anchor));
+        assert!(!task.is_standalone());
+    }
+
+    #[test]
+    fn standalone_task_has_no_anchor() {
+        let task_id = TaskId::new_standalone("Standalone task", Utc::now());
+        let task = Task::new(task_id, "Standalone task");
+
+        assert!(task.anchor_id().is_none());
+        assert!(task.is_standalone());
     }
 
     #[test]

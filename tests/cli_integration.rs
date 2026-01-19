@@ -697,3 +697,307 @@ fn test_full_workflow() {
     ).unwrap();
     assert!(context_json["recently_done"].as_array().unwrap().len() >= 3);
 }
+
+// =============================================================================
+// Standalone Task Tests
+// =============================================================================
+
+#[test]
+fn test_standalone_task_add() {
+    let dir = setup_project();
+
+    // Create a standalone task (no parent)
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Fix typo in README"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Created task"))
+        .stdout(predicate::str::contains("t-")); // Standalone tasks have t- prefix
+
+    let _ = output;
+}
+
+#[test]
+fn test_standalone_task_json_output() {
+    let dir = setup_project();
+
+    // Create standalone task with JSON output
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Standalone task", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    // Verify standalone flag is true
+    assert!(json["standalone"].as_bool().unwrap());
+    // Verify ID starts with t-
+    assert!(json["id"].as_str().unwrap().starts_with("t-"));
+}
+
+#[test]
+fn test_standalone_task_list() {
+    let dir = setup_project();
+
+    // Create standalone tasks
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Standalone One"])
+        .assert()
+        .success();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Standalone Two"])
+        .assert()
+        .success();
+
+    // List with --standalone flag
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "list", "--standalone"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Standalone One"))
+        .stdout(predicate::str::contains("Standalone Two"));
+}
+
+#[test]
+fn test_standalone_task_show() {
+    let dir = setup_project();
+
+    // Create standalone task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Show me", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let task_id = json["id"].as_str().unwrap();
+
+    // Show should display standalone task with Type: Standalone
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "show", task_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Type: Standalone"))
+        .stdout(predicate::str::contains("Show me"));
+}
+
+#[test]
+fn test_standalone_task_lifecycle() {
+    let dir = setup_project();
+
+    // Create standalone task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Lifecycle test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let task_id = json["id"].as_str().unwrap();
+
+    // Start task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "start", task_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Started task"));
+
+    // Complete task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "done", task_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Completed task"));
+}
+
+#[test]
+fn test_standalone_task_dependencies() {
+    let dir = setup_project();
+
+    // Create two standalone tasks
+    let output1 = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "First standalone", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout1 = String::from_utf8_lossy(&output1.get_output().stdout);
+    let task1_id = serde_json::from_str::<serde_json::Value>(&stdout1).unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let output2 = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Second standalone", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout2 = String::from_utf8_lossy(&output2.get_output().stdout);
+    let task2_id = serde_json::from_str::<serde_json::Value>(&stdout2).unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // Add dependency: task2 depends on task1
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "dep", &task2_id, &task1_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("now depends on"));
+
+    // Check blocked shows task2
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["blocked"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Second standalone"));
+}
+
+#[test]
+fn test_mixed_anchored_and_standalone_tasks() {
+    let dir = setup_project();
+
+    // Create an anchor
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["anchor", "new", "Mixed Test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let anchor_id = json["id"].as_str().unwrap();
+
+    // Add anchored task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", anchor_id, "Anchored task"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("a-")); // Anchored tasks have a- prefix
+
+    // Add standalone task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Standalone task"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("t-")); // Standalone tasks have t- prefix
+
+    // List all tasks should show both
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Anchored task"))
+        .stdout(predicate::str::contains("Standalone task"));
+
+    // Ready should include both types
+    let ready_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["ready", "--format", "json"])
+        .assert()
+        .success();
+
+    let ready_json: serde_json::Value = serde_json::from_str(
+        &String::from_utf8_lossy(&ready_output.get_output().stdout),
+    )
+    .unwrap();
+    let ready_tasks = ready_json.as_array().unwrap();
+    assert!(ready_tasks.len() >= 2);
+}
+
+#[test]
+fn test_standalone_subtask() {
+    let dir = setup_project();
+
+    // Create standalone parent task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Parent task", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let parent_id = json["id"].as_str().unwrap();
+
+    // Create subtask under standalone task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", parent_id, "Subtask of standalone"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(parent_id)) // Subtask ID includes parent
+        .stdout(predicate::str::contains(".1")); // Sequence number
+}
+
+#[test]
+fn test_status_shows_standalone_count() {
+    let dir = setup_project();
+
+    // Create standalone tasks
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Standalone for status"])
+        .assert()
+        .success();
+
+    // Status should show standalone count
+    let status_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["status", "--format", "json"])
+        .assert()
+        .success();
+
+    let status_json: serde_json::Value = serde_json::from_str(
+        &String::from_utf8_lossy(&status_output.get_output().stdout),
+    )
+    .unwrap();
+
+    assert!(status_json["standalone_tasks"].is_object());
+    assert!(status_json["standalone_tasks"]["total"].as_u64().unwrap() >= 1);
+}
+
+#[test]
+fn test_context_includes_standalone_tasks() {
+    let dir = setup_project();
+
+    // Create standalone task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Standalone for context"])
+        .assert()
+        .success();
+
+    // Context should include standalone_tasks section
+    let context_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["context"])
+        .assert()
+        .success();
+
+    let context_json: serde_json::Value = serde_json::from_str(
+        &String::from_utf8_lossy(&context_output.get_output().stdout),
+    )
+    .unwrap();
+
+    assert!(context_json["standalone_tasks"].is_object());
+    assert!(context_json["standalone_tasks"]["ready"].is_array());
+}

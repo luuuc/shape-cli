@@ -51,7 +51,8 @@ pub fn ready(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
                 serde_json::json!({
                     "id": t.id.to_string(),
                     "title": t.title,
-                    "anchor_id": t.anchor_id().to_string(),
+                    "standalone": t.is_standalone(),
+                    "anchor_id": t.anchor_id().map(|a| a.to_string()),
                 })
             })
             .collect();
@@ -158,6 +159,12 @@ pub fn status(output: &Output) -> Result<()> {
     let in_progress_tasks = tasks.values().filter(|t| t.status.is_active()).count();
     let todo_tasks = tasks.values().filter(|t| t.status.is_pending()).count();
 
+    // Count standalone tasks
+    let standalone_tasks = tasks.values().filter(|t| t.is_standalone()).count();
+    let standalone_todo = tasks.values().filter(|t| t.is_standalone() && t.status.is_pending()).count();
+    let standalone_in_progress = tasks.values().filter(|t| t.is_standalone() && t.status.is_active()).count();
+    let standalone_done = tasks.values().filter(|t| t.is_standalone() && t.status.is_complete()).count();
+
     // Build status map for ready/blocked
     let statuses: HashMap<TaskId, TaskStatus> = tasks
         .iter()
@@ -187,6 +194,12 @@ pub fn status(output: &Output) -> Result<()> {
                 "ready": ready_count,
                 "blocked": blocked_count,
             },
+            "standalone_tasks": {
+                "total": standalone_tasks,
+                "todo": standalone_todo,
+                "in_progress": standalone_in_progress,
+                "done": standalone_done,
+            },
         }));
     } else {
         println!("Project Status");
@@ -202,6 +215,20 @@ pub fn status(output: &Output) -> Result<()> {
         println!();
         println!("  Ready to work:   {}", ready_count);
         println!("  Blocked:         {}", blocked_count);
+
+        if standalone_tasks > 0 {
+            println!();
+            println!("Standalone Tasks: {}", standalone_tasks);
+            if standalone_todo > 0 {
+                println!("  [ ] Todo:        {}", standalone_todo);
+            }
+            if standalone_in_progress > 0 {
+                println!("  [~] In Progress: {}", standalone_in_progress);
+            }
+            if standalone_done > 0 {
+                println!("  [x] Done:        {}", standalone_done);
+            }
+        }
 
         if !anchors.is_empty() {
             println!();
