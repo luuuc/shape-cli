@@ -45,8 +45,7 @@ impl Project {
 
     /// Opens the project at the current directory or a parent
     pub fn open_current() -> Result<Self> {
-        let root = Config::find_project_root()
-            .ok_or(ProjectError::NotInProject)?;
+        let root = Config::find_project_root().ok_or(ProjectError::NotInProject)?;
 
         Self::open(root)
     }
@@ -57,16 +56,25 @@ impl Project {
         let shape_dir = root.join(".shape");
 
         // Create directory structure
-        fs::create_dir_all(&shape_dir)
-            .with_context(|| format!("Failed to create .shape directory: {}", shape_dir.display()))?;
+        fs::create_dir_all(&shape_dir).with_context(|| {
+            format!("Failed to create .shape directory: {}", shape_dir.display())
+        })?;
 
         let anchors_dir = shape_dir.join("anchors");
-        fs::create_dir_all(&anchors_dir)
-            .with_context(|| format!("Failed to create anchors directory: {}", anchors_dir.display()))?;
+        fs::create_dir_all(&anchors_dir).with_context(|| {
+            format!(
+                "Failed to create anchors directory: {}",
+                anchors_dir.display()
+            )
+        })?;
 
         let plugins_dir = shape_dir.join("plugins");
-        fs::create_dir_all(&plugins_dir)
-            .with_context(|| format!("Failed to create plugins directory: {}", plugins_dir.display()))?;
+        fs::create_dir_all(&plugins_dir).with_context(|| {
+            format!(
+                "Failed to create plugins directory: {}",
+                plugins_dir.display()
+            )
+        })?;
 
         let sync_dir = shape_dir.join("sync");
         fs::create_dir_all(&sync_dir)
@@ -106,8 +114,9 @@ sync/
 # Ignore plugin cache
 plugins/*.cache
 "#;
-            fs::write(&gitignore_path, gitignore)
-                .with_context(|| format!("Failed to write .gitignore: {}", gitignore_path.display()))?;
+            fs::write(&gitignore_path, gitignore).with_context(|| {
+                format!("Failed to write .gitignore: {}", gitignore_path.display())
+            })?;
         }
 
         Self::open(root)

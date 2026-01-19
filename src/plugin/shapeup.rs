@@ -74,7 +74,9 @@ What is out of scope for this pitch?
 
     /// Valid appetite values
     pub fn appetites() -> Vec<&'static str> {
-        vec!["6-weeks", "6 weeks", "2-weeks", "2 weeks", "1-week", "1 week"]
+        vec![
+            "6-weeks", "6 weeks", "2-weeks", "2 weeks", "1-week", "1 week",
+        ]
     }
 
     /// Validates a ShapeUp anchor frontmatter
@@ -142,7 +144,12 @@ mod tests {
             "My Pitch"
         );
         assert_eq!(
-            template.frontmatter.get("appetite").unwrap().as_str().unwrap(),
+            template
+                .frontmatter
+                .get("appetite")
+                .unwrap()
+                .as_str()
+                .unwrap(),
             "6-weeks"
         );
         assert!(template.body.contains("## Problem"));

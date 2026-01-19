@@ -253,8 +253,8 @@ impl Config {
         let root = self.require_project_root()?;
         let config_path = root.join(".shape").join("config.toml");
 
-        let content = toml::to_string_pretty(&self.project)
-            .context("Failed to serialize project config")?;
+        let content =
+            toml::to_string_pretty(&self.project).context("Failed to serialize project config")?;
 
         fs::write(&config_path, content)
             .with_context(|| format!("Failed to write project config: {}", config_path.display()))
@@ -265,12 +265,16 @@ impl Config {
         let config_dir = Self::global_config_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
 
-        fs::create_dir_all(&config_dir)
-            .with_context(|| format!("Failed to create config directory: {}", config_dir.display()))?;
+        fs::create_dir_all(&config_dir).with_context(|| {
+            format!(
+                "Failed to create config directory: {}",
+                config_dir.display()
+            )
+        })?;
 
         let config_path = config_dir.join("config.toml");
-        let content = toml::to_string_pretty(&self.global)
-            .context("Failed to serialize global config")?;
+        let content =
+            toml::to_string_pretty(&self.global).context("Failed to serialize global config")?;
 
         fs::write(&config_path, content)
             .with_context(|| format!("Failed to write global config: {}", config_path.display()))

@@ -74,9 +74,9 @@
 //! 3. **AI-optimized**: Context export designed for minimal tokens
 //! 4. **Extensible**: Plugin system for custom anchor types and sync
 
-pub mod domain;
-pub mod storage;
-pub mod plugin;
 pub mod cli;
+pub mod domain;
+pub mod plugin;
+pub mod storage;
 
 pub use domain::{Anchor, AnchorId, AnchorStatus, Task, TaskId, TaskStatus};

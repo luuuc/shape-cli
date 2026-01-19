@@ -30,18 +30,18 @@
 //!
 //! Call [`run()`] to parse arguments and execute the appropriate command.
 
-mod app;
-mod output;
-mod anchor;
-mod task;
-mod query;
-mod context;
-mod plugin_cmd;
-mod sync_cmd;
 mod agent_setup;
+mod anchor;
+mod app;
 mod cache_cmd;
-mod merge_driver;
 mod compact;
+mod context;
+mod merge_driver;
+mod output;
+mod plugin_cmd;
+mod query;
+mod sync_cmd;
+mod task;
 
-pub use app::{Cli, Commands, run};
+pub use app::{run, Cli, Commands};
 pub use output::{Output, OutputFormat};

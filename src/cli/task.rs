@@ -97,7 +97,9 @@ pub fn run(cmd: TaskCommands, output: &Output) -> Result<()> {
             };
             add_task(output, parent, &title)
         }
-        TaskCommands::List { anchor, standalone } => list_tasks(output, anchor.as_deref(), standalone),
+        TaskCommands::List { anchor, standalone } => {
+            list_tasks(output, anchor.as_deref(), standalone)
+        }
         TaskCommands::Show { id } => show_task(output, &id),
         TaskCommands::Start { id } => start_task(output, &id),
         TaskCommands::Done { id } => complete_task(output, &id),
@@ -245,10 +247,8 @@ fn show_task(output: &Output, id_str: &str) -> Result<()> {
         .ok_or_else(|| anyhow::anyhow!("Task not found: {}", id))?;
 
     // Build status map for ready/blocked calculation
-    let statuses: HashMap<TaskId, TaskStatus> = tasks
-        .iter()
-        .map(|(id, t)| (id.clone(), t.status))
-        .collect();
+    let statuses: HashMap<TaskId, TaskStatus> =
+        tasks.iter().map(|(id, t)| (id.clone(), t.status)).collect();
 
     let is_ready = task.is_ready(&statuses);
     let is_blocked = task.is_blocked(&statuses);
@@ -288,7 +288,10 @@ fn show_task(output: &Output, id_str: &str) -> Result<()> {
         if !task.depends_on.is_empty() {
             println!("\nDepends on:");
             for dep in &task.depends_on {
-                let dep_status = statuses.get(dep).map(|s| format!("{:?}", s)).unwrap_or_else(|| "?".to_string());
+                let dep_status = statuses
+                    .get(dep)
+                    .map(|s| format!("{:?}", s))
+                    .unwrap_or_else(|| "?".to_string());
                 println!("  {} ({})", dep, dep_status);
             }
         }
@@ -429,7 +432,10 @@ fn remove_dependency(output: &Output, task_str: &str, depends_on_str: &str) -> R
             "removed_dependency": depends_on_id.to_string(),
         }));
     } else {
-        output.success(&format!("Removed dependency: {} no longer depends on {}", task_id, depends_on_id));
+        output.success(&format!(
+            "Removed dependency: {} no longer depends on {}",
+            task_id, depends_on_id
+        ));
     }
 
     Ok(())

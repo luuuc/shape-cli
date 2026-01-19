@@ -1,0 +1,13 @@
+{
+  "name": "@shape-cli/darwin-x64",
+  "version": "0.0.0",
+  "description": "shape-cli binary for macOS x64 (Intel)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shape-cli/shape"
+  },
+  "os": ["darwin"],
+  "cpu": ["x64"],
+  "files": ["bin"]
+}

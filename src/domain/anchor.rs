@@ -310,7 +310,10 @@ mod tests {
         anchor.set_meta("appetite", "6 weeks");
         anchor.set_meta("priority", 1);
 
-        assert_eq!(anchor.get_meta("appetite"), Some(&serde_json::json!("6 weeks")));
+        assert_eq!(
+            anchor.get_meta("appetite"),
+            Some(&serde_json::json!("6 weeks"))
+        );
         assert_eq!(anchor.get_meta("priority"), Some(&serde_json::json!(1)));
 
         anchor.remove_meta("appetite");
@@ -327,12 +330,30 @@ mod tests {
 
     #[test]
     fn anchor_status_from_string() {
-        assert_eq!("proposed".parse::<AnchorStatus>().unwrap(), AnchorStatus::Proposed);
-        assert_eq!("in_progress".parse::<AnchorStatus>().unwrap(), AnchorStatus::InProgress);
-        assert_eq!("in-progress".parse::<AnchorStatus>().unwrap(), AnchorStatus::InProgress);
-        assert_eq!("shipped".parse::<AnchorStatus>().unwrap(), AnchorStatus::Shipped);
-        assert_eq!("done".parse::<AnchorStatus>().unwrap(), AnchorStatus::Shipped);
-        assert_eq!("archived".parse::<AnchorStatus>().unwrap(), AnchorStatus::Archived);
+        assert_eq!(
+            "proposed".parse::<AnchorStatus>().unwrap(),
+            AnchorStatus::Proposed
+        );
+        assert_eq!(
+            "in_progress".parse::<AnchorStatus>().unwrap(),
+            AnchorStatus::InProgress
+        );
+        assert_eq!(
+            "in-progress".parse::<AnchorStatus>().unwrap(),
+            AnchorStatus::InProgress
+        );
+        assert_eq!(
+            "shipped".parse::<AnchorStatus>().unwrap(),
+            AnchorStatus::Shipped
+        );
+        assert_eq!(
+            "done".parse::<AnchorStatus>().unwrap(),
+            AnchorStatus::Shipped
+        );
+        assert_eq!(
+            "archived".parse::<AnchorStatus>().unwrap(),
+            AnchorStatus::Archived
+        );
     }
 
     #[test]

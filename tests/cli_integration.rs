@@ -3,24 +3,19 @@
 //! These tests verify the complete workflow from initialization through
 //! task management, ensuring commands work together correctly.
 
-use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
 /// Get a command instance for the shape binary
-fn shape_cmd() -> Command {
-    Command::cargo_bin("shape").unwrap()
+fn shape_cmd() -> assert_cmd::Command {
+    assert_cmd::Command::new(assert_cmd::cargo::cargo_bin!("shape"))
 }
 
 /// Create a temporary directory and initialize a shape project
 fn setup_project() -> TempDir {
     let dir = TempDir::new().unwrap();
-    shape_cmd()
-        .arg("init")
-        .arg(dir.path())
-        .assert()
-        .success();
+    shape_cmd().arg("init").arg(dir.path()).assert().success();
     dir
 }
 
@@ -53,18 +48,10 @@ fn test_init_is_idempotent() {
     let dir = TempDir::new().unwrap();
 
     // First init
-    shape_cmd()
-        .arg("init")
-        .arg(dir.path())
-        .assert()
-        .success();
+    shape_cmd().arg("init").arg(dir.path()).assert().success();
 
     // Second init should also succeed
-    shape_cmd()
-        .arg("init")
-        .arg(dir.path())
-        .assert()
-        .success();
+    shape_cmd().arg("init").arg(dir.path()).assert().success();
 }
 
 // =============================================================================
@@ -584,27 +571,39 @@ fn test_full_workflow() {
         .args(["task", "add", anchor_id, "Build API", "--format", "json"])
         .assert()
         .success();
-    let task1_id = serde_json::from_str::<serde_json::Value>(
-        &String::from_utf8_lossy(&output1.get_output().stdout)
-    ).unwrap()["id"].as_str().unwrap().to_string();
+    let task1_id = serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(
+        &output1.get_output().stdout,
+    ))
+    .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     let output2 = shape_cmd()
         .current_dir(dir.path())
         .args(["task", "add", anchor_id, "Write Tests", "--format", "json"])
         .assert()
         .success();
-    let task2_id = serde_json::from_str::<serde_json::Value>(
-        &String::from_utf8_lossy(&output2.get_output().stdout)
-    ).unwrap()["id"].as_str().unwrap().to_string();
+    let task2_id = serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(
+        &output2.get_output().stdout,
+    ))
+    .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     let output3 = shape_cmd()
         .current_dir(dir.path())
         .args(["task", "add", anchor_id, "Deploy", "--format", "json"])
         .assert()
         .success();
-    let task3_id = serde_json::from_str::<serde_json::Value>(
-        &String::from_utf8_lossy(&output3.get_output().stdout)
-    ).unwrap()["id"].as_str().unwrap().to_string();
+    let task3_id = serde_json::from_str::<serde_json::Value>(&String::from_utf8_lossy(
+        &output3.get_output().stdout,
+    ))
+    .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     // 3. Set up dependencies: Tests depend on API, Deploy depends on Tests
     shape_cmd()
@@ -626,12 +625,14 @@ fn test_full_workflow() {
         .assert()
         .success();
 
-    let ready_json: serde_json::Value = serde_json::from_str(
-        &String::from_utf8_lossy(&ready_output.get_output().stdout)
-    ).unwrap();
+    let ready_json: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&ready_output.get_output().stdout)).unwrap();
     let ready_tasks = ready_json.as_array().unwrap();
     assert_eq!(ready_tasks.len(), 1);
-    assert!(ready_tasks[0]["title"].as_str().unwrap().contains("Build API"));
+    assert!(ready_tasks[0]["title"]
+        .as_str()
+        .unwrap()
+        .contains("Build API"));
 
     // 5. Start and complete API task
     shape_cmd()
@@ -653,12 +654,14 @@ fn test_full_workflow() {
         .assert()
         .success();
 
-    let ready_json: serde_json::Value = serde_json::from_str(
-        &String::from_utf8_lossy(&ready_output.get_output().stdout)
-    ).unwrap();
+    let ready_json: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&ready_output.get_output().stdout)).unwrap();
     let ready_tasks = ready_json.as_array().unwrap();
     assert_eq!(ready_tasks.len(), 1);
-    assert!(ready_tasks[0]["title"].as_str().unwrap().contains("Write Tests"));
+    assert!(ready_tasks[0]["title"]
+        .as_str()
+        .unwrap()
+        .contains("Write Tests"));
 
     // 7. Complete remaining tasks
     shape_cmd()
@@ -680,9 +683,8 @@ fn test_full_workflow() {
         .assert()
         .success();
 
-    let status_json: serde_json::Value = serde_json::from_str(
-        &String::from_utf8_lossy(&status_output.get_output().stdout)
-    ).unwrap();
+    let status_json: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&status_output.get_output().stdout)).unwrap();
     assert_eq!(status_json["tasks"]["done"].as_u64().unwrap(), 3);
 
     // 9. Context should show recently completed
@@ -692,9 +694,10 @@ fn test_full_workflow() {
         .assert()
         .success();
 
-    let context_json: serde_json::Value = serde_json::from_str(
-        &String::from_utf8_lossy(&context_output.get_output().stdout)
-    ).unwrap();
+    let context_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
+        &context_output.get_output().stdout,
+    ))
+    .unwrap();
     assert!(context_json["recently_done"].as_array().unwrap().len() >= 3);
 }
 
@@ -915,10 +918,8 @@ fn test_mixed_anchored_and_standalone_tasks() {
         .assert()
         .success();
 
-    let ready_json: serde_json::Value = serde_json::from_str(
-        &String::from_utf8_lossy(&ready_output.get_output().stdout),
-    )
-    .unwrap();
+    let ready_json: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&ready_output.get_output().stdout)).unwrap();
     let ready_tasks = ready_json.as_array().unwrap();
     assert!(ready_tasks.len() >= 2);
 }
@@ -966,10 +967,8 @@ fn test_status_shows_standalone_count() {
         .assert()
         .success();
 
-    let status_json: serde_json::Value = serde_json::from_str(
-        &String::from_utf8_lossy(&status_output.get_output().stdout),
-    )
-    .unwrap();
+    let status_json: serde_json::Value =
+        serde_json::from_str(&String::from_utf8_lossy(&status_output.get_output().stdout)).unwrap();
 
     assert!(status_json["standalone_tasks"].is_object());
     assert!(status_json["standalone_tasks"]["total"].as_u64().unwrap() >= 1);
@@ -993,9 +992,9 @@ fn test_context_includes_standalone_tasks() {
         .assert()
         .success();
 
-    let context_json: serde_json::Value = serde_json::from_str(
-        &String::from_utf8_lossy(&context_output.get_output().stdout),
-    )
+    let context_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
+        &context_output.get_output().stdout,
+    ))
     .unwrap();
 
     assert!(context_json["standalone_tasks"].is_object());
@@ -1026,7 +1025,14 @@ fn test_compact_dry_run() {
     for i in 1..=3 {
         let output = shape_cmd()
             .current_dir(dir.path())
-            .args(["task", "add", anchor_id, &format!("Auth task {}", i), "--format", "json"])
+            .args([
+                "task",
+                "add",
+                anchor_id,
+                &format!("Auth task {}", i),
+                "--format",
+                "json",
+            ])
             .assert()
             .success();
 
@@ -1061,7 +1067,13 @@ fn test_compact_and_context_integration() {
     // Create anchor
     let output = shape_cmd()
         .current_dir(dir.path())
-        .args(["anchor", "new", "Compaction Integration", "--format", "json"])
+        .args([
+            "anchor",
+            "new",
+            "Compaction Integration",
+            "--format",
+            "json",
+        ])
         .assert()
         .success();
 
@@ -1071,7 +1083,11 @@ fn test_compact_and_context_integration() {
 
     // Create and complete 3 tasks with similar names (for smart summary)
     let mut task_ids = Vec::new();
-    for task_name in ["Authentication login", "Authentication logout", "Authentication session"] {
+    for task_name in [
+        "Authentication login",
+        "Authentication logout",
+        "Authentication session",
+    ] {
         let output = shape_cmd()
             .current_dir(dir.path())
             .args(["task", "add", anchor_id, task_name, "--format", "json"])
@@ -1099,14 +1115,16 @@ fn test_compact_and_context_integration() {
         .assert()
         .success();
 
-    let compact_json: serde_json::Value = serde_json::from_str(
-        &String::from_utf8_lossy(&compact_output.get_output().stdout),
-    )
+    let compact_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
+        &compact_output.get_output().stdout,
+    ))
     .unwrap();
 
     assert_eq!(compact_json["compacted"].as_u64().unwrap(), 3);
     assert_eq!(compact_json["groups"].as_array().unwrap().len(), 1);
-    let representative_id = compact_json["groups"][0]["representative_id"].as_str().unwrap();
+    let representative_id = compact_json["groups"][0]["representative_id"]
+        .as_str()
+        .unwrap();
 
     // Context should now show compacted section instead of recently_done
     let context_output = shape_cmd()
@@ -1115,9 +1133,9 @@ fn test_compact_and_context_integration() {
         .assert()
         .success();
 
-    let context_json: serde_json::Value = serde_json::from_str(
-        &String::from_utf8_lossy(&context_output.get_output().stdout),
-    )
+    let context_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
+        &context_output.get_output().stdout,
+    ))
     .unwrap();
 
     // Verify compacted section exists and has content
@@ -1126,7 +1144,9 @@ fn test_compact_and_context_integration() {
     assert_eq!(compacted[0]["task_count"].as_u64().unwrap(), 3);
 
     // Recently completed should not include compacted tasks
-    let recently_completed = context_json["tasks"]["recently_completed"].as_array().unwrap();
+    let recently_completed = context_json["tasks"]["recently_completed"]
+        .as_array()
+        .unwrap();
     assert!(recently_completed.is_empty());
 
     // Test undo compaction
@@ -1145,9 +1165,9 @@ fn test_compact_and_context_integration() {
         .assert()
         .success();
 
-    let context_undo_json: serde_json::Value = serde_json::from_str(
-        &String::from_utf8_lossy(&context_after_undo.get_output().stdout),
-    )
+    let context_undo_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
+        &context_after_undo.get_output().stdout,
+    ))
     .unwrap();
 
     // Compacted section should be empty after undo

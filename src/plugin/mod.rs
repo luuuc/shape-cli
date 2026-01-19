@@ -46,14 +46,14 @@
 //! - [`AnchorTypePlugin`] - Trait for anchor type plugins
 //! - [`SyncPlugin`] - Trait for sync plugins
 
-mod protocol;
-mod loader;
 mod anchor_type;
-mod sync;
+mod loader;
+mod protocol;
 mod shapeup;
+mod sync;
 
+pub use anchor_type::{AnchorTemplate, AnchorTypePlugin, MinimalAnchorType};
+pub use loader::{PluginInfo, PluginLoader};
 pub use protocol::{PluginManifest, PluginMessage, PluginRequest, PluginResponse};
-pub use loader::{PluginLoader, PluginInfo};
-pub use anchor_type::{AnchorTypePlugin, AnchorTemplate, MinimalAnchorType};
-pub use sync::{SyncPlugin, SyncOperation, SyncResult, IdMapping, EntityType};
 pub use shapeup::ShapeUpAnchorType;
+pub use sync::{EntityType, IdMapping, SyncOperation, SyncPlugin, SyncResult};

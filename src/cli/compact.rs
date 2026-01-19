@@ -62,16 +62,22 @@ pub fn run(
         Some("basic") => CompactionStrategy::Basic,
         Some("smart") => CompactionStrategy::Smart,
         Some("llm") => CompactionStrategy::Llm,
-        Some(other) => anyhow::bail!("Unknown strategy: {}. Use 'basic', 'smart', or 'llm'", other),
+        Some(other) => anyhow::bail!(
+            "Unknown strategy: {}. Use 'basic', 'smart', or 'llm'",
+            other
+        ),
         None => config.project.compaction.strategy.clone(),
     };
 
-    output.verbose_ctx("compact", &format!(
-        "Using strategy: {}, days threshold: {}, min_tasks: {}",
-        strategy.as_str(),
-        days,
-        config.project.compaction.min_tasks
-    ));
+    output.verbose_ctx(
+        "compact",
+        &format!(
+            "Using strategy: {}, days threshold: {}, min_tasks: {}",
+            strategy.as_str(),
+            days,
+            config.project.compaction.min_tasks
+        ),
+    );
 
     let mut tasks = store.read_all()?;
     let cutoff = Utc::now() - Duration::days(days as i64);
@@ -96,11 +102,14 @@ pub fn run(
     if let Some(anchor_str) = anchor_filter {
         let anchor_id: AnchorId = anchor_str.parse()?;
         candidates.retain(|c| c.anchor_id.as_ref() == Some(&anchor_id));
-        output.verbose_ctx("compact", &format!(
-            "Filtered to {} candidates for anchor {}",
-            candidates.len(),
-            anchor_id
-        ));
+        output.verbose_ctx(
+            "compact",
+            &format!(
+                "Filtered to {} candidates for anchor {}",
+                candidates.len(),
+                anchor_id
+            ),
+        );
     }
 
     if candidates.is_empty() {
@@ -111,7 +120,10 @@ pub fn run(
                 "dry_run": dry_run,
             }));
         } else {
-            println!("No tasks to compact (completed tasks older than {} days)", days);
+            println!(
+                "No tasks to compact (completed tasks older than {} days)",
+                days
+            );
         }
         return Ok(());
     }
@@ -119,7 +131,10 @@ pub fn run(
     // Group candidates by anchor (or standalone)
     let mut by_anchor: HashMap<Option<AnchorId>, Vec<CandidateInfo>> = HashMap::new();
     for candidate in candidates {
-        by_anchor.entry(candidate.anchor_id.clone()).or_default().push(candidate);
+        by_anchor
+            .entry(candidate.anchor_id.clone())
+            .or_default()
+            .push(candidate);
     }
 
     let min_tasks = config.project.compaction.min_tasks;
@@ -132,17 +147,23 @@ pub fn run(
     for (anchor_id, anchor_candidates) in by_anchor {
         // Skip groups that don't meet minimum threshold
         if anchor_candidates.len() < min_tasks {
-            output.verbose_ctx("compact", &format!(
-                "Skipping group with {} tasks (min: {})",
-                anchor_candidates.len(),
-                min_tasks
-            ));
+            output.verbose_ctx(
+                "compact",
+                &format!(
+                    "Skipping group with {} tasks (min: {})",
+                    anchor_candidates.len(),
+                    min_tasks
+                ),
+            );
             continue;
         }
 
         // Generate summary based on strategy
         let summary = generate_summary_from_titles(
-            &anchor_candidates.iter().map(|c| c.title.as_str()).collect::<Vec<_>>(),
+            &anchor_candidates
+                .iter()
+                .map(|c| c.title.as_str())
+                .collect::<Vec<_>>(),
             &strategy,
         );
 
@@ -206,7 +227,11 @@ pub fn run(
             "dry_run": result.dry_run,
         }));
     } else {
-        let action = if dry_run { "Would compact" } else { "Compacted" };
+        let action = if dry_run {
+            "Would compact"
+        } else {
+            "Compacted"
+        };
 
         if result.groups.is_empty() {
             println!("No groups meet the minimum size threshold ({})", min_tasks);
@@ -261,19 +286,16 @@ pub fn undo(output: &Output, task_id_str: &str) -> Result<()> {
         anyhow::bail!("Task {} is not a compaction representative", task_id);
     }
 
-    let compacted_ids = task
-        .compacted_tasks
-        .clone()
-        .unwrap_or_default();
+    let compacted_ids = task.compacted_tasks.clone().unwrap_or_default();
 
     if compacted_ids.is_empty() {
         anyhow::bail!("Task {} has no compacted tasks", task_id);
     }
 
-    output.verbose_ctx("compact", &format!(
-        "Undoing compaction for {} tasks",
-        compacted_ids.len()
-    ));
+    output.verbose_ctx(
+        "compact",
+        &format!("Undoing compaction for {} tasks", compacted_ids.len()),
+    );
 
     // Clear compaction data from representative
     if let Some(rep) = tasks.get_mut(&task_id) {
@@ -339,7 +361,7 @@ fn generate_smart_summary(titles: &[&str]) -> String {
         let words: Vec<String> = title
             .to_lowercase()
             .split_whitespace()
-            .filter(|w| w.len() > 2)  // Skip short words
+            .filter(|w| w.len() > 2) // Skip short words
             .filter(|w| !is_stop_word(w))
             .map(String::from)
             .collect();
@@ -378,12 +400,58 @@ fn generate_smart_summary(titles: &[&str]) -> String {
 /// Check if a word is a common stop word
 fn is_stop_word(word: &str) -> bool {
     const STOP_WORDS: &[&str] = &[
-        "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-        "of", "with", "by", "from", "as", "is", "was", "are", "were", "been",
-        "be", "have", "has", "had", "do", "does", "did", "will", "would",
-        "could", "should", "may", "might", "must", "shall", "can", "need",
-        "this", "that", "these", "those", "it", "its", "add", "update",
-        "fix", "implement", "create", "remove", "delete", "change",
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "but",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "was",
+        "are",
+        "were",
+        "been",
+        "be",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "must",
+        "shall",
+        "can",
+        "need",
+        "this",
+        "that",
+        "these",
+        "those",
+        "it",
+        "its",
+        "add",
+        "update",
+        "fix",
+        "implement",
+        "create",
+        "remove",
+        "delete",
+        "change",
     ];
     STOP_WORDS.contains(&word)
 }

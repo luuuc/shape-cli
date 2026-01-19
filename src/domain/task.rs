@@ -208,7 +208,11 @@ pub struct Task {
 
     /// Per-field version timestamps for conflict resolution
     /// Field is named `_v` in JSON for compactness
-    #[serde(rename = "_v", default, skip_serializing_if = "FieldVersions::is_empty")]
+    #[serde(
+        rename = "_v",
+        default,
+        skip_serializing_if = "FieldVersions::is_empty"
+    )]
     pub versions: FieldVersions,
 
     /// Summary text for compacted tasks (only set on representative task)
@@ -388,11 +392,7 @@ impl Task {
     }
 
     /// Mark this task as a compaction representative with the given summary and task IDs
-    pub fn set_compaction(
-        &mut self,
-        summary: String,
-        compacted_task_ids: Vec<TaskId>,
-    ) {
+    pub fn set_compaction(&mut self, summary: String, compacted_task_ids: Vec<TaskId>) {
         self.summary = Some(summary);
         self.compacted_tasks = Some(compacted_task_ids);
         self.updated_at = Utc::now();

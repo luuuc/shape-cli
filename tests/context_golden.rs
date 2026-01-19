@@ -3,13 +3,12 @@
 //! These tests verify that the `shape context` output format remains stable
 //! for AI agent consumption. The compact format is the primary AI contract.
 
-use assert_cmd::Command;
 use serde_json::Value;
 use tempfile::TempDir;
 
 /// Get a command instance for the shape binary
-fn shape_cmd() -> Command {
-    Command::cargo_bin("shape").unwrap()
+fn shape_cmd() -> assert_cmd::Command {
+    assert_cmd::Command::new(assert_cmd::cargo::cargo_bin!("shape"))
 }
 
 /// Create a project with test data for context testing
@@ -17,11 +16,7 @@ fn setup_context_test_project() -> TempDir {
     let dir = TempDir::new().unwrap();
 
     // Initialize
-    shape_cmd()
-        .arg("init")
-        .arg(dir.path())
-        .assert()
-        .success();
+    shape_cmd().arg("init").arg(dir.path()).assert().success();
 
     // Create anchor
     let output = shape_cmd()
@@ -40,36 +35,69 @@ fn setup_context_test_project() -> TempDir {
         .args(["task", "add", &anchor_id, "Ready Task", "--format", "json"])
         .assert()
         .success();
-    let task1_id = serde_json::from_str::<Value>(
-        &String::from_utf8_lossy(&output1.get_output().stdout)
-    ).unwrap()["id"].as_str().unwrap().to_string();
+    let task1_id =
+        serde_json::from_str::<Value>(&String::from_utf8_lossy(&output1.get_output().stdout))
+            .unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
 
     let output2 = shape_cmd()
         .current_dir(dir.path())
-        .args(["task", "add", &anchor_id, "Blocked Task", "--format", "json"])
+        .args([
+            "task",
+            "add",
+            &anchor_id,
+            "Blocked Task",
+            "--format",
+            "json",
+        ])
         .assert()
         .success();
-    let task2_id = serde_json::from_str::<Value>(
-        &String::from_utf8_lossy(&output2.get_output().stdout)
-    ).unwrap()["id"].as_str().unwrap().to_string();
+    let task2_id =
+        serde_json::from_str::<Value>(&String::from_utf8_lossy(&output2.get_output().stdout))
+            .unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
 
     let output3 = shape_cmd()
         .current_dir(dir.path())
-        .args(["task", "add", &anchor_id, "In Progress Task", "--format", "json"])
+        .args([
+            "task",
+            "add",
+            &anchor_id,
+            "In Progress Task",
+            "--format",
+            "json",
+        ])
         .assert()
         .success();
-    let task3_id = serde_json::from_str::<Value>(
-        &String::from_utf8_lossy(&output3.get_output().stdout)
-    ).unwrap()["id"].as_str().unwrap().to_string();
+    let task3_id =
+        serde_json::from_str::<Value>(&String::from_utf8_lossy(&output3.get_output().stdout))
+            .unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
 
     let output4 = shape_cmd()
         .current_dir(dir.path())
-        .args(["task", "add", &anchor_id, "Completed Task", "--format", "json"])
+        .args([
+            "task",
+            "add",
+            &anchor_id,
+            "Completed Task",
+            "--format",
+            "json",
+        ])
         .assert()
         .success();
-    let task4_id = serde_json::from_str::<Value>(
-        &String::from_utf8_lossy(&output4.get_output().stdout)
-    ).unwrap()["id"].as_str().unwrap().to_string();
+    let task4_id =
+        serde_json::from_str::<Value>(&String::from_utf8_lossy(&output4.get_output().stdout))
+            .unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
 
     // Set up dependency: task2 blocked by task1
     shape_cmd()
@@ -116,9 +144,15 @@ fn test_compact_format_has_required_top_level_keys() {
     assert!(json.is_object(), "Context must be a JSON object");
     assert!(json.get("anchors").is_some(), "Missing 'anchors' key");
     assert!(json.get("ready").is_some(), "Missing 'ready' key");
-    assert!(json.get("in_progress").is_some(), "Missing 'in_progress' key");
+    assert!(
+        json.get("in_progress").is_some(),
+        "Missing 'in_progress' key"
+    );
     assert!(json.get("blocked").is_some(), "Missing 'blocked' key");
-    assert!(json.get("recently_done").is_some(), "Missing 'recently_done' key");
+    assert!(
+        json.get("recently_done").is_some(),
+        "Missing 'recently_done' key"
+    );
 }
 
 #[test]
@@ -165,7 +199,11 @@ fn test_compact_format_ready_is_string_array() {
     for item in ready.as_array().unwrap() {
         assert!(item.is_string(), "Ready item must be a string");
         let s = item.as_str().unwrap();
-        assert!(s.contains(": "), "Ready item must be in 'id: title' format, got: {}", s);
+        assert!(
+            s.contains(": "),
+            "Ready item must be in 'id: title' format, got: {}",
+            s
+        );
     }
 }
 
@@ -189,7 +227,11 @@ fn test_compact_format_blocked_includes_blockers() {
     for item in blocked.as_array().unwrap() {
         assert!(item.is_string(), "Blocked item must be a string");
         let s = item.as_str().unwrap();
-        assert!(s.contains("blocked by"), "Blocked item must indicate blocker: {}", s);
+        assert!(
+            s.contains("blocked by"),
+            "Blocked item must indicate blocker: {}",
+            s
+        );
     }
 }
 
@@ -276,9 +318,15 @@ fn test_full_format_tasks_structure() {
 
     // Verify task categories exist
     assert!(tasks.get("ready").is_some(), "Missing tasks.ready");
-    assert!(tasks.get("in_progress").is_some(), "Missing tasks.in_progress");
+    assert!(
+        tasks.get("in_progress").is_some(),
+        "Missing tasks.in_progress"
+    );
     assert!(tasks.get("blocked").is_some(), "Missing tasks.blocked");
-    assert!(tasks.get("recently_completed").is_some(), "Missing tasks.recently_completed");
+    assert!(
+        tasks.get("recently_completed").is_some(),
+        "Missing tasks.recently_completed"
+    );
 }
 
 #[test]
@@ -298,11 +346,26 @@ fn test_full_format_summary_structure() {
     assert!(summary.is_object(), "'summary' must be an object");
 
     // Verify summary fields
-    assert!(summary.get("total_anchors").is_some(), "Missing summary.total_anchors");
-    assert!(summary.get("total_tasks").is_some(), "Missing summary.total_tasks");
-    assert!(summary.get("ready_count").is_some(), "Missing summary.ready_count");
-    assert!(summary.get("blocked_count").is_some(), "Missing summary.blocked_count");
-    assert!(summary.get("in_progress_count").is_some(), "Missing summary.in_progress_count");
+    assert!(
+        summary.get("total_anchors").is_some(),
+        "Missing summary.total_anchors"
+    );
+    assert!(
+        summary.get("total_tasks").is_some(),
+        "Missing summary.total_tasks"
+    );
+    assert!(
+        summary.get("ready_count").is_some(),
+        "Missing summary.ready_count"
+    );
+    assert!(
+        summary.get("blocked_count").is_some(),
+        "Missing summary.blocked_count"
+    );
+    assert!(
+        summary.get("in_progress_count").is_some(),
+        "Missing summary.in_progress_count"
+    );
 }
 
 #[test]
@@ -371,32 +434,52 @@ fn test_context_reflects_actual_state() {
     assert_eq!(json["anchors"].as_array().unwrap().len(), 1);
 
     // Should have 1 ready task (Ready Task)
-    let ready: Vec<&str> = json["ready"].as_array().unwrap()
+    let ready: Vec<&str> = json["ready"]
+        .as_array()
+        .unwrap()
         .iter()
         .filter_map(|v| v.as_str())
         .collect();
-    assert!(ready.iter().any(|s| s.contains("Ready Task")), "Ready Task not in ready list");
+    assert!(
+        ready.iter().any(|s| s.contains("Ready Task")),
+        "Ready Task not in ready list"
+    );
 
     // Should have 1 blocked task (Blocked Task)
-    let blocked: Vec<&str> = json["blocked"].as_array().unwrap()
+    let blocked: Vec<&str> = json["blocked"]
+        .as_array()
+        .unwrap()
         .iter()
         .filter_map(|v| v.as_str())
         .collect();
-    assert!(blocked.iter().any(|s| s.contains("Blocked Task")), "Blocked Task not in blocked list");
+    assert!(
+        blocked.iter().any(|s| s.contains("Blocked Task")),
+        "Blocked Task not in blocked list"
+    );
 
     // Should have 1 in-progress task (In Progress Task)
-    let in_progress: Vec<&str> = json["in_progress"].as_array().unwrap()
+    let in_progress: Vec<&str> = json["in_progress"]
+        .as_array()
+        .unwrap()
         .iter()
         .filter_map(|v| v.as_str())
         .collect();
-    assert!(in_progress.iter().any(|s| s.contains("In Progress Task")), "In Progress Task not in in_progress list");
+    assert!(
+        in_progress.iter().any(|s| s.contains("In Progress Task")),
+        "In Progress Task not in in_progress list"
+    );
 
     // Should have 1 recently completed (Completed Task)
-    let recently_done: Vec<&str> = json["recently_done"].as_array().unwrap()
+    let recently_done: Vec<&str> = json["recently_done"]
+        .as_array()
+        .unwrap()
         .iter()
         .filter_map(|v| v.as_str())
         .collect();
-    assert!(recently_done.iter().any(|s| s.contains("Completed Task")), "Completed Task not in recently_done list");
+    assert!(
+        recently_done.iter().any(|s| s.contains("Completed Task")),
+        "Completed Task not in recently_done list"
+    );
 }
 
 #[test]
@@ -404,11 +487,7 @@ fn test_context_anchor_filter() {
     let dir = TempDir::new().unwrap();
 
     // Initialize
-    shape_cmd()
-        .arg("init")
-        .arg(dir.path())
-        .assert()
-        .success();
+    shape_cmd().arg("init").arg(dir.path()).assert().success();
 
     // Create two anchors
     let output1 = shape_cmd()
@@ -416,18 +495,24 @@ fn test_context_anchor_filter() {
         .args(["anchor", "new", "Anchor One", "--format", "json"])
         .assert()
         .success();
-    let anchor1_id = serde_json::from_str::<Value>(
-        &String::from_utf8_lossy(&output1.get_output().stdout)
-    ).unwrap()["id"].as_str().unwrap().to_string();
+    let anchor1_id =
+        serde_json::from_str::<Value>(&String::from_utf8_lossy(&output1.get_output().stdout))
+            .unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
 
     let output2 = shape_cmd()
         .current_dir(dir.path())
         .args(["anchor", "new", "Anchor Two", "--format", "json"])
         .assert()
         .success();
-    let _anchor2_id = serde_json::from_str::<Value>(
-        &String::from_utf8_lossy(&output2.get_output().stdout)
-    ).unwrap()["id"].as_str().unwrap().to_string();
+    let _anchor2_id =
+        serde_json::from_str::<Value>(&String::from_utf8_lossy(&output2.get_output().stdout))
+            .unwrap()["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
 
     // Add task to anchor1
     shape_cmd()
@@ -448,18 +533,17 @@ fn test_context_anchor_filter() {
 
     // Should only have 1 anchor
     assert_eq!(json["anchors"].as_array().unwrap().len(), 1);
-    assert!(json["anchors"][0]["title"].as_str().unwrap().contains("Anchor One"));
+    assert!(json["anchors"][0]["title"]
+        .as_str()
+        .unwrap()
+        .contains("Anchor One"));
 }
 
 #[test]
 fn test_empty_project_context() {
     let dir = TempDir::new().unwrap();
 
-    shape_cmd()
-        .arg("init")
-        .arg(dir.path())
-        .assert()
-        .success();
+    shape_cmd().arg("init").arg(dir.path()).assert().success();
 
     // Context on empty project should work
     let output = shape_cmd()

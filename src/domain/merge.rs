@@ -258,8 +258,14 @@ mod tests {
         let result = merge_tasks(&base, &ours, &theirs);
 
         assert!(!result.had_conflicts);
-        assert_eq!(result.task.get_meta("priority"), Some(&serde_json::json!("high")));
-        assert_eq!(result.task.get_meta("estimate"), Some(&serde_json::json!(5)));
+        assert_eq!(
+            result.task.get_meta("priority"),
+            Some(&serde_json::json!("high"))
+        );
+        assert_eq!(
+            result.task.get_meta("estimate"),
+            Some(&serde_json::json!(5))
+        );
     }
 
     #[test]

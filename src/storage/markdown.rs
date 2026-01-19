@@ -125,7 +125,8 @@ impl AnchorStore {
         let mut entries = HashMap::new();
 
         for (line_num, line) in reader.lines().enumerate() {
-            let line = line.with_context(|| format!("Failed to read index line {}", line_num + 1))?;
+            let line =
+                line.with_context(|| format!("Failed to read index line {}", line_num + 1))?;
 
             if line.trim().is_empty() {
                 continue;
@@ -215,15 +216,16 @@ impl AnchorStore {
 
         // Find the end of frontmatter
         let rest = &content[3..];
-        let end_pos = rest.find("---")
+        let end_pos = rest
+            .find("---")
             .ok_or_else(|| anyhow::anyhow!("Missing frontmatter end delimiter (---)"))?;
 
         let yaml_content = &rest[..end_pos].trim();
         let body = rest[end_pos + 3..].trim();
 
         // Parse YAML frontmatter
-        let fm: AnchorFrontmatter = serde_yaml::from_str(yaml_content)
-            .context("Failed to parse frontmatter")?;
+        let fm: AnchorFrontmatter =
+            serde_yaml::from_str(yaml_content).context("Failed to parse frontmatter")?;
 
         Ok(fm.into_anchor(body.to_string()))
     }
@@ -256,7 +258,8 @@ impl AnchorStore {
     /// Renders an anchor to markdown
     fn render_markdown(&self, anchor: &Anchor) -> Result<String> {
         let frontmatter = AnchorFrontmatter::from(anchor);
-        let yaml = serde_yaml::to_string(&frontmatter).context("Failed to serialize frontmatter")?;
+        let yaml =
+            serde_yaml::to_string(&frontmatter).context("Failed to serialize frontmatter")?;
 
         let mut content = String::new();
         content.push_str("---\n");
@@ -514,7 +517,10 @@ mod tests {
 
         // Temp file should not exist after write
         let temp_path = store.anchor_path(&anchor.id).with_extension("md.tmp");
-        assert!(!temp_path.exists(), "Temp file should be removed after atomic write");
+        assert!(
+            !temp_path.exists(),
+            "Temp file should be removed after atomic write"
+        );
 
         // Actual file should exist
         assert!(store.anchor_path(&anchor.id).exists());

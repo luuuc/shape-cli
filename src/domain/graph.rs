@@ -96,11 +96,7 @@ impl DependencyGraph {
     ///
     /// The edge direction is: depends_on -> task
     /// This means "depends_on must be completed before task"
-    pub fn add_dependency(
-        &mut self,
-        task: &TaskId,
-        depends_on: &TaskId,
-    ) -> Result<(), GraphError> {
+    pub fn add_dependency(&mut self, task: &TaskId, depends_on: &TaskId) -> Result<(), GraphError> {
         if task == depends_on {
             return Err(GraphError::SelfDependency(task.clone()));
         }

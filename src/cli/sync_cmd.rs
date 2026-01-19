@@ -37,7 +37,11 @@ pub fn run(cmd: SyncCommands, output: &Output) -> Result<()> {
     match cmd {
         SyncCommands::Run { plugin } => run_sync(output, &plugin),
         SyncCommands::Status => sync_status(output),
-        SyncCommands::Link { local, remote, plugin } => link_ids(output, &local, &remote, &plugin),
+        SyncCommands::Link {
+            local,
+            remote,
+            plugin,
+        } => link_ids(output, &local, &remote, &plugin),
     }
 }
 
@@ -56,7 +60,10 @@ fn run_sync(output: &Output, plugin_name: &str) -> Result<()> {
     };
 
     if loader.get(&full_name).is_none() {
-        anyhow::bail!("Sync plugin not found: {}. Install it or check 'shape plugin list'.", full_name);
+        anyhow::bail!(
+            "Sync plugin not found: {}. Install it or check 'shape plugin list'.",
+            full_name
+        );
     }
 
     let sync = SyncPlugin::new(&loader, &full_name, &project.sync_dir());
@@ -110,8 +117,14 @@ fn run_sync(output: &Output, plugin_name: &str) -> Result<()> {
     } else {
         println!("Sync with {} complete", plugin_name);
         println!();
-        println!("Push: {} items pushed, {} conflicts", push_result.pushed, push_result.conflicts);
-        println!("Pull: {} items pulled, {} conflicts", pull_result.pulled, pull_result.conflicts);
+        println!(
+            "Push: {} items pushed, {} conflicts",
+            push_result.pushed, push_result.conflicts
+        );
+        println!(
+            "Pull: {} items pulled, {} conflicts",
+            pull_result.pulled, pull_result.conflicts
+        );
 
         if !push_result.errors.is_empty() || !pull_result.errors.is_empty() {
             println!();
@@ -169,7 +182,10 @@ fn sync_status(output: &Output) -> Result<()> {
         }));
     } else {
         println!("Sync Status:");
-        println!("{:<25} {:<10} {:<10} LAST SYNC", "PLUGIN", "ANCHORS", "TASKS");
+        println!(
+            "{:<25} {:<10} {:<10} LAST SYNC",
+            "PLUGIN", "ANCHORS", "TASKS"
+        );
         println!("{}", "-".repeat(70));
 
         for status in statuses {
@@ -180,10 +196,7 @@ fn sync_status(output: &Output) -> Result<()> {
 
             println!(
                 "{:<25} {:<10} {:<10} {}",
-                status.plugin,
-                status.mapped_anchors,
-                status.mapped_tasks,
-                last_sync
+                status.plugin, status.mapped_anchors, status.mapped_tasks, last_sync
             );
         }
     }

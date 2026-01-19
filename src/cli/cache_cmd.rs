@@ -81,11 +81,23 @@ fn status(output: &Output) -> Result<()> {
         println!("Cache Status");
         println!("{}", "=".repeat(40));
         println!("Path: {}", cache_path.display());
-        println!("Status: {}", if is_stale { "STALE (needs rebuild)" } else { "fresh" });
+        println!(
+            "Status: {}",
+            if is_stale {
+                "STALE (needs rebuild)"
+            } else {
+                "fresh"
+            }
+        );
         println!();
         println!("Cached Data:");
-        println!("  Tasks: {} ({} todo, {} in progress, {} done)",
-            todo + in_progress + done, todo, in_progress, done);
+        println!(
+            "  Tasks: {} ({} todo, {} in progress, {} done)",
+            todo + in_progress + done,
+            todo,
+            in_progress,
+            done
+        );
         println!("  Anchors: {}", total_anchors);
 
         if is_stale {

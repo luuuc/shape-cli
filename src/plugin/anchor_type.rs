@@ -75,7 +75,9 @@ impl<'a> AnchorTypePlugin<'a> {
         if !response.success {
             anyhow::bail!(
                 "Plugin error: {}",
-                response.error.unwrap_or_else(|| "Unknown error".to_string())
+                response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string())
             );
         }
 
@@ -90,7 +92,11 @@ impl<'a> AnchorTypePlugin<'a> {
     }
 
     /// Parses and validates an anchor
-    pub fn parse(&self, frontmatter: &serde_json::Value, body: &str) -> anyhow::Result<ParseResult> {
+    pub fn parse(
+        &self,
+        frontmatter: &serde_json::Value,
+        body: &str,
+    ) -> anyhow::Result<ParseResult> {
         let request = PluginRequest::new(
             "parse",
             serde_json::json!({
@@ -104,7 +110,9 @@ impl<'a> AnchorTypePlugin<'a> {
         if !response.success {
             anyhow::bail!(
                 "Plugin error: {}",
-                response.error.unwrap_or_else(|| "Unknown error".to_string())
+                response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string())
             );
         }
 
@@ -112,8 +120,7 @@ impl<'a> AnchorTypePlugin<'a> {
             .data
             .ok_or_else(|| anyhow::anyhow!("No parse result returned"))?;
 
-        let result: ParseResult =
-            serde_json::from_value(data).context("Failed to parse result")?;
+        let result: ParseResult = serde_json::from_value(data).context("Failed to parse result")?;
 
         Ok(result)
     }
@@ -127,7 +134,9 @@ impl<'a> AnchorTypePlugin<'a> {
         if !response.success {
             anyhow::bail!(
                 "Plugin error: {}",
-                response.error.unwrap_or_else(|| "Unknown error".to_string())
+                response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string())
             );
         }
 
@@ -187,7 +196,11 @@ impl MinimalAnchorType {
             if !Self::statuses().contains(&status.to_string()) {
                 errors.push(ValidationError {
                     field: "status".to_string(),
-                    message: format!("Invalid status: {}. Valid values: {:?}", status, Self::statuses()),
+                    message: format!(
+                        "Invalid status: {}. Valid values: {:?}",
+                        status,
+                        Self::statuses()
+                    ),
                 });
             }
         }

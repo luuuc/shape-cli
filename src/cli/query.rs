@@ -10,7 +10,10 @@ use crate::storage::Project;
 /// Show tasks ready to work on
 pub fn ready(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
     let project = Project::open_current()?;
-    output.verbose_ctx("ready", &format!("Opened project at: {}", project.root().display()));
+    output.verbose_ctx(
+        "ready",
+        &format!("Opened project at: {}", project.root().display()),
+    );
 
     // Get or rebuild cache
     let cache = project.get_or_rebuild_cache()?;
@@ -56,7 +59,10 @@ pub fn ready(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
 /// Show blocked tasks
 pub fn blocked(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
     let project = Project::open_current()?;
-    output.verbose_ctx("blocked", &format!("Opened project at: {}", project.root().display()));
+    output.verbose_ctx(
+        "blocked",
+        &format!("Opened project at: {}", project.root().display()),
+    );
 
     // Get or rebuild cache
     let cache = project.get_or_rebuild_cache()?;
@@ -70,7 +76,10 @@ pub fn blocked(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
         cache.blocked_tasks_detailed()?
     };
 
-    output.verbose_ctx("blocked", &format!("Found {} blocked tasks", blocked_tasks.len()));
+    output.verbose_ctx(
+        "blocked",
+        &format!("Found {} blocked tasks", blocked_tasks.len()),
+    );
 
     if output.is_json() {
         let items: Vec<_> = blocked_tasks
@@ -110,7 +119,8 @@ pub fn status(output: &Output) -> Result<()> {
     let total_tasks = todo_tasks + in_progress_tasks + done_tasks;
 
     // Get standalone task counts
-    let (standalone_todo, standalone_in_progress, standalone_done) = cache.standalone_task_counts()?;
+    let (standalone_todo, standalone_in_progress, standalone_done) =
+        cache.standalone_task_counts()?;
     let standalone_tasks = standalone_todo + standalone_in_progress + standalone_done;
 
     // Get ready/blocked counts
@@ -148,8 +158,12 @@ pub fn status(output: &Output) -> Result<()> {
         println!("Project Status");
         println!("{}", "=".repeat(40));
         println!();
-        println!("Anchors: {} total ({} active, {} complete)",
-            anchors.len(), active_anchors, complete_anchors);
+        println!(
+            "Anchors: {} total ({} active, {} complete)",
+            anchors.len(),
+            active_anchors,
+            complete_anchors
+        );
         println!();
         println!("Tasks: {} total", total_tasks);
         println!("  [ ] Todo:        {}", todo_tasks);

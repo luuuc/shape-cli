@@ -2,6 +2,55 @@
 
 A local-first task management tool for software teams. Organize work around "anchors" (pitches, RFCs, PRDs) with dependent tasks and AI-optimized context export.
 
+## Installation
+
+### npm (Node.js)
+
+```bash
+npm install -g shape-cli
+# or use without installing
+npx shape-cli ready
+```
+
+### pip (Python)
+
+```bash
+pip install shape-cli
+```
+
+### gem (Ruby)
+
+```bash
+gem install shape-cli
+# or add to Gemfile
+gem "shape-cli"
+```
+
+### Cargo (Rust)
+
+```bash
+cargo install shape-cli
+```
+
+### Homebrew (macOS/Linux)
+
+```bash
+brew install shape-cli/tap/shape-cli
+```
+
+### Pre-built binaries
+
+Download from [GitHub Releases](https://github.com/shape-cli/shape/releases):
+
+| Platform | Download |
+|----------|----------|
+| macOS (Apple Silicon) | `shape-darwin-arm64.tar.gz` |
+| macOS (Intel) | `shape-darwin-x64.tar.gz` |
+| Linux (x64) | `shape-linux-x64.tar.gz` |
+| Linux (ARM64) | `shape-linux-arm64.tar.gz` |
+| Linux (Alpine/musl) | `shape-linux-x64-musl.tar.gz` |
+| Windows (x64) | `shape-windows-x64.zip` |
+
 ## Quick Start
 
 ```bash
@@ -183,7 +232,35 @@ shape task done a-abc1234.1
 shape context --compact
 ```
 
-## Building
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+- name: Install Shape CLI
+  run: npm install -g shape-cli
+
+- name: Check ready tasks
+  run: shape ready --format json
+```
+
+### GitLab CI
+
+```yaml
+install_shape:
+  script:
+    - pip install shape-cli
+    - shape ready
+```
+
+### Generic (download binary)
+
+```bash
+curl -fsSL https://github.com/shape-cli/shape/releases/latest/download/shape-linux-x64.tar.gz | tar -xz
+./shape ready
+```
+
+## Building from Source
 
 ```bash
 # Development

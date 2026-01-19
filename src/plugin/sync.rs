@@ -72,11 +72,7 @@ pub struct SyncPlugin<'a> {
 
 impl<'a> SyncPlugin<'a> {
     /// Creates a new sync plugin wrapper
-    pub fn new(
-        loader: &'a PluginLoader,
-        plugin_name: impl Into<String>,
-        sync_dir: &Path,
-    ) -> Self {
+    pub fn new(loader: &'a PluginLoader, plugin_name: impl Into<String>, sync_dir: &Path) -> Self {
         let plugin_name = plugin_name.into();
         let mapping_store = MappingStore::new(sync_dir.join(format!("{}.jsonl", plugin_name)));
 
@@ -95,7 +91,11 @@ impl<'a> SyncPlugin<'a> {
     }
 
     /// Pushes local changes to remote
-    pub fn push(&self, anchors: &[serde_json::Value], tasks: &[serde_json::Value]) -> Result<SyncResult> {
+    pub fn push(
+        &self,
+        anchors: &[serde_json::Value],
+        tasks: &[serde_json::Value],
+    ) -> Result<SyncResult> {
         let mappings = self.mapping_store.read_all()?;
 
         let request = PluginRequest::new(
@@ -112,7 +112,9 @@ impl<'a> SyncPlugin<'a> {
         if !response.success {
             anyhow::bail!(
                 "Push failed: {}",
-                response.error.unwrap_or_else(|| "Unknown error".to_string())
+                response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string())
             );
         }
 
@@ -122,8 +124,8 @@ impl<'a> SyncPlugin<'a> {
 
         // Update mappings from response
         if let Some(new_mappings) = data.get("mappings") {
-            let mappings: Vec<IdMapping> = serde_json::from_value(new_mappings.clone())
-                .context("Failed to parse mappings")?;
+            let mappings: Vec<IdMapping> =
+                serde_json::from_value(new_mappings.clone()).context("Failed to parse mappings")?;
             self.mapping_store.write_all(&mappings)?;
         }
 
@@ -149,7 +151,9 @@ impl<'a> SyncPlugin<'a> {
         if !response.success {
             anyhow::bail!(
                 "Pull failed: {}",
-                response.error.unwrap_or_else(|| "Unknown error".to_string())
+                response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string())
             );
         }
 
@@ -159,8 +163,8 @@ impl<'a> SyncPlugin<'a> {
 
         // Update mappings from response
         if let Some(new_mappings) = data.get("mappings") {
-            let mappings: Vec<IdMapping> = serde_json::from_value(new_mappings.clone())
-                .context("Failed to parse mappings")?;
+            let mappings: Vec<IdMapping> =
+                serde_json::from_value(new_mappings.clone()).context("Failed to parse mappings")?;
             self.mapping_store.write_all(&mappings)?;
         }
 
@@ -196,10 +200,7 @@ impl<'a> SyncPlugin<'a> {
                 .values()
                 .filter(|m| m.entity_type == EntityType::Task)
                 .count(),
-            last_sync: mappings
-                .values()
-                .map(|m| m.last_sync)
-                .max(),
+            last_sync: mappings.values().map(|m| m.last_sync).max(),
         })
     }
 
@@ -214,7 +215,8 @@ impl<'a> SyncPlugin<'a> {
 
         let mut mappings = self.mapping_store.read_all()?;
         mappings.insert(local_id.to_string(), mapping);
-        self.mapping_store.write_all(&mappings.into_values().collect::<Vec<_>>())?;
+        self.mapping_store
+            .write_all(&mappings.into_values().collect::<Vec<_>>())?;
 
         Ok(())
     }
@@ -224,7 +226,8 @@ impl<'a> SyncPlugin<'a> {
         let mut mappings = self.mapping_store.read_all()?;
         let removed = mappings.remove(local_id).is_some();
         if removed {
-            self.mapping_store.write_all(&mappings.into_values().collect::<Vec<_>>())?;
+            self.mapping_store
+                .write_all(&mappings.into_values().collect::<Vec<_>>())?;
         }
         Ok(removed)
     }

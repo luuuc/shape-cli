@@ -1,0 +1,39 @@
+{
+  "name": "shape-cli",
+  "version": "0.0.0",
+  "description": "A local-first task management CLI for software teams",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shape-cli/shape"
+  },
+  "homepage": "https://github.com/shape-cli/shape",
+  "keywords": [
+    "cli",
+    "project-management",
+    "task",
+    "shapeup",
+    "productivity"
+  ],
+  "bin": {
+    "shape": "bin/shape"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js",
+    "test": "node --test 'test/*.test.js'"
+  },
+  "optionalDependencies": {
+    "@shape-cli/darwin-arm64": "0.0.0",
+    "@shape-cli/darwin-x64": "0.0.0",
+    "@shape-cli/linux-arm64": "0.0.0",
+    "@shape-cli/linux-x64": "0.0.0",
+    "@shape-cli/windows-x64": "0.0.0"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "files": [
+    "bin",
+    "scripts"
+  ]
+}

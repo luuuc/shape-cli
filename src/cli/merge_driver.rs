@@ -209,10 +209,10 @@ mod tests {
         let task2 = make_task(&anchor, 2, "Task 2");
 
         // Base has task1
-        let base_path = write_test_file(dir.path(), "base", &[task1.clone()]);
+        let base_path = write_test_file(dir.path(), "base", std::slice::from_ref(&task1));
 
         // Ours has task1 (unchanged)
-        let ours_path = write_test_file(dir.path(), "ours", &[task1.clone()]);
+        let ours_path = write_test_file(dir.path(), "ours", std::slice::from_ref(&task1));
 
         // Theirs adds task2
         let theirs_path = write_test_file(dir.path(), "theirs", &[task1.clone(), task2.clone()]);
@@ -236,7 +236,7 @@ mod tests {
         let task1 = make_task(&anchor, 1, "Original");
 
         // Base has original task
-        let base_path = write_test_file(dir.path(), "base", &[task1.clone()]);
+        let base_path = write_test_file(dir.path(), "base", std::slice::from_ref(&task1));
 
         // Ours modifies title
         let mut ours_task = task1.clone();
@@ -258,7 +258,10 @@ mod tests {
         let merged = read_tasks_file(&ours_path).unwrap();
         let merged_task = merged.get(&task1.id).unwrap();
         assert_eq!(merged_task.title, "Ours title");
-        assert_eq!(merged_task.description, Some("Theirs description".to_string()));
+        assert_eq!(
+            merged_task.description,
+            Some("Theirs description".to_string())
+        );
     }
 
     #[test]
@@ -269,7 +272,7 @@ mod tests {
         let task1 = make_task(&anchor, 1, "Task 1");
 
         // Base has task1
-        let base_path = write_test_file(dir.path(), "base", &[task1.clone()]);
+        let base_path = write_test_file(dir.path(), "base", std::slice::from_ref(&task1));
 
         // Ours deletes task1
         let ours_path = write_test_file(dir.path(), "ours", &[]);

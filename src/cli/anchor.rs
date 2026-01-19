@@ -102,9 +102,11 @@ fn list_anchors(output: &Output, status_filter: Option<&str>) -> Result<()> {
     let store = project.anchor_store();
 
     let list = if let Some(status_str) = status_filter {
-        let status: AnchorStatus = status_str.parse()
+        let status: AnchorStatus = status_str
+            .parse()
             .map_err(|_| anyhow::anyhow!("Invalid status: {}", status_str))?;
-        store.list_by_status(status)?
+        store
+            .list_by_status(status)?
             .into_iter()
             .map(|(id, title)| (id, title, status))
             .collect()
@@ -209,7 +211,8 @@ fn set_status(output: &Output, id_str: &str, status_str: &str) -> Result<()> {
         .read(&id)?
         .ok_or_else(|| anyhow::anyhow!("Anchor not found: {}", id))?;
 
-    let status: AnchorStatus = status_str.parse()
+    let status: AnchorStatus = status_str
+        .parse()
         .map_err(|_| anyhow::anyhow!("Invalid status: {}", status_str))?;
 
     anchor.set_status(status);
@@ -221,7 +224,10 @@ fn set_status(output: &Output, id_str: &str, status_str: &str) -> Result<()> {
             "status": anchor.status,
         }));
     } else {
-        output.success(&format!("Updated {} status to {}", anchor.id, anchor.status));
+        output.success(&format!(
+            "Updated {} status to {}",
+            anchor.id, anchor.status
+        ));
     }
 
     Ok(())

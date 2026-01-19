@@ -48,14 +48,14 @@
 //! assert!(!ready.contains(&task2.id)); // task2 is blocked
 //! ```
 
-mod id;
-mod task;
 mod anchor;
 mod graph;
+mod id;
 mod merge;
+mod task;
 
-pub use id::{AnchorId, TaskId, IdError};
-pub use task::{Task, TaskStatus, TaskMeta, FieldVersions, current_timestamp};
-pub use anchor::{Anchor, AnchorStatus, AnchorMeta, AnchorFrontmatter};
+pub use anchor::{Anchor, AnchorFrontmatter, AnchorMeta, AnchorStatus};
 pub use graph::{DependencyGraph, GraphError};
+pub use id::{AnchorId, IdError, TaskId};
 pub use merge::{merge_tasks, MergeResult};
+pub use task::{current_timestamp, FieldVersions, Task, TaskMeta, TaskStatus};

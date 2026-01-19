@@ -146,7 +146,6 @@ impl TaskStore {
         }
 
         let file = OpenOptions::new()
-            
             .create(true)
             .append(true)
             .open(&self.path)

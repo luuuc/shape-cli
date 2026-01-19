@@ -243,7 +243,9 @@ mod tests {
 
     #[test]
     fn has_shape_section_detects_marker() {
-        assert!(has_shape_section("# My Project\n\n## Shape CLI (Task Management)\n"));
+        assert!(has_shape_section(
+            "# My Project\n\n## Shape CLI (Task Management)\n"
+        ));
         assert!(!has_shape_section("# My Project\n\n## Other Section\n"));
     }
 

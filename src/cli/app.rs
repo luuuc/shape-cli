@@ -1,15 +1,22 @@
 //! Main CLI application structure
 
-use clap::{Parser, Subcommand};
 use anyhow::Result;
+use clap::{Parser, Subcommand};
 
 use super::output::{Output, OutputFormat};
-use super::{anchor, task, query, context, plugin_cmd, sync_cmd, agent_setup, cache_cmd, merge_driver, compact};
+use super::{
+    agent_setup, anchor, cache_cmd, compact, context, merge_driver, plugin_cmd, query, sync_cmd,
+    task,
+};
 use crate::storage::Project;
 
 #[derive(Parser)]
 #[command(name = "shape")]
-#[command(author, version, about = "Local-first task management for software teams")]
+#[command(
+    author,
+    version,
+    about = "Local-first task management for software teams"
+)]
 #[command(propagate_version = true)]
 pub struct Cli {
     /// Output format
@@ -169,19 +176,34 @@ pub fn run() -> Result<()> {
         Commands::Init { path } => {
             output.verbose_ctx("init", &format!("Initializing project at: {}", path));
             let project = Project::init(&path)?;
-            output.verbose_ctx("init", &format!("Created .shape directory at: {}", project.shape_dir().display()));
-            output.success(&format!("Initialized shape project at {}", project.root().display()));
+            output.verbose_ctx(
+                "init",
+                &format!(
+                    "Created .shape directory at: {}",
+                    project.shape_dir().display()
+                ),
+            );
+            output.success(&format!(
+                "Initialized shape project at {}",
+                project.root().display()
+            ));
         }
 
         Commands::Anchor(cmd) => anchor::run(cmd, &output)?,
         Commands::Task(cmd) => task::run(cmd, &output)?,
 
         Commands::Ready { anchor } => {
-            output.verbose_ctx("ready", &format!("Querying ready tasks, anchor filter: {:?}", anchor));
+            output.verbose_ctx(
+                "ready",
+                &format!("Querying ready tasks, anchor filter: {:?}", anchor),
+            );
             query::ready(&output, anchor.as_deref())?
         }
         Commands::Blocked { anchor } => {
-            output.verbose_ctx("blocked", &format!("Querying blocked tasks, anchor filter: {:?}", anchor));
+            output.verbose_ctx(
+                "blocked",
+                &format!("Querying blocked tasks, anchor filter: {:?}", anchor),
+            );
             query::blocked(&output, anchor.as_deref())?
         }
         Commands::Status => {
@@ -189,28 +211,51 @@ pub fn run() -> Result<()> {
             query::status(&output)?
         }
 
-        Commands::Context { compact: compact_mode, anchor, days } => {
-            output.verbose_ctx("context", &format!("Exporting context: compact={}, anchor={:?}, days={}", compact_mode, anchor, days));
+        Commands::Context {
+            compact: compact_mode,
+            anchor,
+            days,
+        } => {
+            output.verbose_ctx(
+                "context",
+                &format!(
+                    "Exporting context: compact={}, anchor={:?}, days={}",
+                    compact_mode, anchor, days
+                ),
+            );
             context::export(&output, compact_mode, anchor.as_deref(), days)?
         }
 
-        Commands::Compact { days, anchor, dry_run, strategy, undo } => {
+        Commands::Compact {
+            days,
+            anchor,
+            dry_run,
+            strategy,
+            undo,
+        } => {
             if let Some(task_id) = undo {
                 compact::undo(&output, &task_id)?
             } else {
-                compact::run(&output, days, anchor.as_deref(), dry_run, strategy.as_deref())?
+                compact::run(
+                    &output,
+                    days,
+                    anchor.as_deref(),
+                    dry_run,
+                    strategy.as_deref(),
+                )?
             }
         }
 
-        Commands::AgentSetup { show, claude, cursor, windsurf } => {
-            agent_setup::run(&output, show, claude, cursor, windsurf)?
-        }
+        Commands::AgentSetup {
+            show,
+            claude,
+            cursor,
+            windsurf,
+        } => agent_setup::run(&output, show, claude, cursor, windsurf)?,
 
         Commands::Cache(cmd) => cache_cmd::run(cmd, &output)?,
 
-        Commands::Search { query } => {
-            search(&output, &query)?
-        }
+        Commands::Search { query } => search(&output, &query)?,
 
         Commands::MergeDriver { base, ours, theirs } => {
             // This is called by git, return the exit code directly
@@ -218,9 +263,7 @@ pub fn run() -> Result<()> {
             std::process::exit(exit_code);
         }
 
-        Commands::MergeSetup => {
-            setup_merge_driver(&output)?
-        }
+        Commands::MergeSetup => setup_merge_driver(&output)?,
 
         Commands::Advanced(advanced_cmd) => match advanced_cmd {
             AdvancedCommands::Plugin(cmd) => plugin_cmd::run(cmd, &output)?,
@@ -278,7 +321,8 @@ fn search(output: &Output, query: &str) -> Result<()> {
             // Show snippet if not empty
             if !result.snippet.is_empty() && result.snippet != result.title {
                 // Clean up HTML tags in snippet for terminal display
-                let clean_snippet = result.snippet
+                let clean_snippet = result
+                    .snippet
                     .replace("<mark>", "\x1b[1m")
                     .replace("</mark>", "\x1b[0m");
                 println!("             {}", clean_snippet);

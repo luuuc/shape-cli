@@ -58,8 +58,9 @@ impl Cache {
         let anchors_dir = shape_dir.join("anchors");
 
         // Ensure cache directory exists
-        fs::create_dir_all(&cache_dir)
-            .with_context(|| format!("Failed to create cache directory: {}", cache_dir.display()))?;
+        fs::create_dir_all(&cache_dir).with_context(|| {
+            format!("Failed to create cache directory: {}", cache_dir.display())
+        })?;
 
         let conn = Connection::open(&db_path)
             .with_context(|| format!("Failed to open cache database: {}", db_path.display()))?;
@@ -213,8 +214,10 @@ impl Cache {
         )?;
 
         // Set schema version
-        self.conn
-            .execute(&format!("PRAGMA user_version = {}", Self::SCHEMA_VERSION), [])?;
+        self.conn.execute(
+            &format!("PRAGMA user_version = {}", Self::SCHEMA_VERSION),
+            [],
+        )?;
 
         Ok(())
     }
@@ -319,7 +322,8 @@ impl Cache {
                 } else {
                     Some(serde_json::to_string(&task.meta)?)
                 };
-                let depends_on: Vec<String> = task.depends_on.iter().map(|d| d.to_string()).collect();
+                let depends_on: Vec<String> =
+                    task.depends_on.iter().map(|d| d.to_string()).collect();
                 let depends_on_json = if depends_on.is_empty() {
                     None
                 } else {
@@ -343,9 +347,8 @@ impl Cache {
 
         // Insert dependencies
         {
-            let mut stmt = tx.prepare(
-                "INSERT INTO dependencies (task_id, depends_on_id) VALUES (?1, ?2)",
-            )?;
+            let mut stmt =
+                tx.prepare("INSERT INTO dependencies (task_id, depends_on_id) VALUES (?1, ?2)")?;
 
             for task in tasks.values() {
                 for dep in &task.depends_on {
@@ -393,7 +396,9 @@ impl Cache {
             TaskStatus::Done => "done",
         };
 
-        let mut stmt = self.conn.prepare("SELECT id FROM tasks WHERE status = ?1")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id FROM tasks WHERE status = ?1")?;
         let ids: Vec<String> = stmt
             .query_map(params![status_str], |row| row.get(0))?
             .collect::<Result<Vec<_>, _>>()?;
@@ -403,7 +408,9 @@ impl Cache {
 
     /// Query: Get all tasks for an anchor
     pub fn tasks_for_anchor(&self, anchor_id: &str) -> Result<Vec<String>> {
-        let mut stmt = self.conn.prepare("SELECT id FROM tasks WHERE anchor_id = ?1")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id FROM tasks WHERE anchor_id = ?1")?;
         let ids: Vec<String> = stmt
             .query_map(params![anchor_id], |row| row.get(0))?
             .collect::<Result<Vec<_>, _>>()?;
@@ -413,7 +420,9 @@ impl Cache {
 
     /// Query: Get all standalone tasks
     pub fn standalone_tasks(&self) -> Result<Vec<String>> {
-        let mut stmt = self.conn.prepare("SELECT id FROM tasks WHERE anchor_id IS NULL")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id FROM tasks WHERE anchor_id IS NULL")?;
         let ids: Vec<String> = stmt
             .query_map([], |row| row.get(0))?
             .collect::<Result<Vec<_>, _>>()?;
@@ -446,9 +455,9 @@ impl Cache {
 
     /// Query: Get anchor counts by status
     pub fn anchor_counts(&self) -> Result<HashMap<String, usize>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT status, COUNT(*) FROM briefs GROUP BY status",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT status, COUNT(*) FROM briefs GROUP BY status")?;
 
         let mut counts = HashMap::new();
         let rows = stmt.query_map([], |row| {
@@ -603,7 +612,10 @@ impl Cache {
     }
 
     /// Query: Get blocked tasks filtered by anchor
-    pub fn blocked_tasks_for_anchor(&self, anchor_id: &str) -> Result<Vec<(CachedTask, Vec<String>)>> {
+    pub fn blocked_tasks_for_anchor(
+        &self,
+        anchor_id: &str,
+    ) -> Result<Vec<(CachedTask, Vec<String>)>> {
         let mut stmt = self.conn.prepare(
             "SELECT DISTINCT t.id, t.anchor_id, t.title, t.status, t.description
              FROM tasks t
@@ -669,9 +681,9 @@ impl Cache {
 
     /// Query: List all anchors with basic info
     pub fn list_anchors(&self) -> Result<Vec<CachedAnchor>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, title, brief_type, status FROM briefs ORDER BY id",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, title, brief_type, status FROM briefs ORDER BY id")?;
 
         let anchors = stmt
             .query_map([], |row| {

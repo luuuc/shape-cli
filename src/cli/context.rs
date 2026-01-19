@@ -10,9 +10,17 @@ use crate::domain::{AnchorId, DependencyGraph, TaskId, TaskStatus};
 use crate::storage::Project;
 
 /// Export project context for AI consumption
-pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days: u32) -> Result<()> {
+pub fn export(
+    output: &Output,
+    compact: bool,
+    anchor_filter: Option<&str>,
+    days: u32,
+) -> Result<()> {
     let project = Project::open_current()?;
-    output.verbose_ctx("context", &format!("Opened project at: {}", project.root().display()));
+    output.verbose_ctx(
+        "context",
+        &format!("Opened project at: {}", project.root().display()),
+    );
 
     let anchor_store = project.anchor_store();
     let task_store = project.task_store();
@@ -20,7 +28,10 @@ pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days:
     let anchors = anchor_store.read_all()?;
     let tasks = task_store.read_all()?;
 
-    output.verbose_ctx("context", &format!("Loaded {} anchors, {} tasks", anchors.len(), tasks.len()));
+    output.verbose_ctx(
+        "context",
+        &format!("Loaded {} anchors, {} tasks", anchors.len(), tasks.len()),
+    );
 
     // Filter by anchor if specified
     let (anchors, tasks) = if let Some(anchor_str) = anchor_filter {
@@ -36,7 +47,10 @@ pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days:
             .filter(|(_, t)| t.anchor_id().as_ref() == Some(&anchor_id))
             .collect();
 
-        output.verbose_ctx("context", &format!("Filtered to {} tasks for anchor", filtered_tasks.len()));
+        output.verbose_ctx(
+            "context",
+            &format!("Filtered to {} tasks for anchor", filtered_tasks.len()),
+        );
 
         let mut filtered_anchors = HashMap::new();
         filtered_anchors.insert(anchor_id.clone(), anchor.clone());
@@ -47,10 +61,8 @@ pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days:
     };
 
     // Build status map
-    let statuses: HashMap<TaskId, TaskStatus> = tasks
-        .iter()
-        .map(|(id, t)| (id.clone(), t.status))
-        .collect();
+    let statuses: HashMap<TaskId, TaskStatus> =
+        tasks.iter().map(|(id, t)| (id.clone(), t.status)).collect();
 
     // Build dependency graph
     let graph = DependencyGraph::from_tasks(tasks.values())?;
@@ -78,10 +90,7 @@ pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days:
         .collect();
 
     // In-progress tasks
-    let in_progress: Vec<_> = tasks
-        .values()
-        .filter(|t| t.status.is_active())
-        .collect();
+    let in_progress: Vec<_> = tasks.values().filter(|t| t.status.is_active()).collect();
 
     output.verbose_ctx("context", &format!(
         "Context summary: {} ready, {} blocked, {} in_progress, {} recently_completed, {} compacted groups",
@@ -89,17 +98,35 @@ pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days:
     ));
 
     // Collect standalone tasks
-    let standalone_tasks: Vec<_> = tasks
-        .values()
-        .filter(|t| t.is_standalone())
-        .collect();
+    let standalone_tasks: Vec<_> = tasks.values().filter(|t| t.is_standalone()).collect();
 
     if compact {
         // Compact format - minimal tokens
-        export_compact(output, &anchors, &tasks, &ready_ids, &blocked_ids, &in_progress, &recent_completed, &compacted, &standalone_tasks)
+        export_compact(
+            output,
+            &anchors,
+            &tasks,
+            &ready_ids,
+            &blocked_ids,
+            &in_progress,
+            &recent_completed,
+            &compacted,
+            &standalone_tasks,
+        )
     } else {
         // Full format
-        export_full(output, &anchors, &tasks, &ready_ids, &blocked_ids, &in_progress, &recent_completed, &compacted, &statuses, &standalone_tasks)
+        export_full(
+            output,
+            &anchors,
+            &tasks,
+            &ready_ids,
+            &blocked_ids,
+            &in_progress,
+            &recent_completed,
+            &compacted,
+            &statuses,
+            &standalone_tasks,
+        )
     }
 }
 
@@ -231,19 +258,27 @@ fn export_full(
         .iter()
         .filter(|t| blocked_ids.contains(&t.id))
         .map(|t| {
-            let blocking: Vec<_> = t.depends_on.iter().filter_map(|dep_id| {
-                if !statuses.get(dep_id).map(|s| s.is_complete()).unwrap_or(false) {
-                    tasks.get(dep_id).map(|dep| {
-                        serde_json::json!({
-                            "id": dep.id.to_string(),
-                            "title": dep.title,
-                            "status": dep.status,
+            let blocking: Vec<_> = t
+                .depends_on
+                .iter()
+                .filter_map(|dep_id| {
+                    if !statuses
+                        .get(dep_id)
+                        .map(|s| s.is_complete())
+                        .unwrap_or(false)
+                    {
+                        tasks.get(dep_id).map(|dep| {
+                            serde_json::json!({
+                                "id": dep.id.to_string(),
+                                "title": dep.title,
+                                "status": dep.status,
+                            })
                         })
-                    })
-                } else {
-                    None
-                }
-            }).collect();
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
             serde_json::json!({
                 "id": t.id.to_string(),

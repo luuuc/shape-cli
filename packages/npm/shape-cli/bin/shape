@@ -1,0 +1,77 @@
+#!/usr/bin/env node
+
+const { execFileSync } = require("child_process");
+const path = require("path");
+const fs = require("fs");
+
+function getPlatformPackage() {
+  const platform = process.platform;
+  const arch = process.arch;
+
+  const platformMap = {
+    darwin: {
+      arm64: "@shape-cli/darwin-arm64",
+      x64: "@shape-cli/darwin-x64",
+    },
+    linux: {
+      arm64: "@shape-cli/linux-arm64",
+      x64: "@shape-cli/linux-x64",
+    },
+    win32: {
+      x64: "@shape-cli/windows-x64",
+    },
+  };
+
+  const archMap = platformMap[platform];
+  if (!archMap) {
+    console.error(`Unsupported platform: ${platform}`);
+    process.exit(1);
+  }
+
+  const packageName = archMap[arch];
+  if (!packageName) {
+    console.error(`Unsupported architecture: ${arch} on ${platform}`);
+    process.exit(1);
+  }
+
+  return packageName;
+}
+
+function getBinaryPath() {
+  const packageName = getPlatformPackage();
+  const binaryName = process.platform === "win32" ? "shape.exe" : "shape";
+
+  try {
+    const packagePath = require.resolve(`${packageName}/package.json`);
+    const packageDir = path.dirname(packagePath);
+    return path.join(packageDir, "bin", binaryName);
+  } catch (e) {
+    console.error(`Failed to find binary package: ${packageName}`);
+    console.error(
+      "Try reinstalling: npm install shape-cli or npm install -g shape-cli"
+    );
+    process.exit(1);
+  }
+}
+
+const binaryPath = getBinaryPath();
+
+if (!fs.existsSync(binaryPath)) {
+  console.error(`Binary not found at: ${binaryPath}`);
+  console.error(
+    "Try reinstalling: npm install shape-cli or npm install -g shape-cli"
+  );
+  process.exit(1);
+}
+
+try {
+  execFileSync(binaryPath, process.argv.slice(2), {
+    stdio: "inherit",
+    env: process.env,
+  });
+} catch (e) {
+  if (e.status !== undefined) {
+    process.exit(e.status);
+  }
+  throw e;
+}

@@ -38,14 +38,14 @@
 //! - [`TaskStore`] - Read/write tasks as JSONL
 //! - [`Config`] - Project and global configuration
 
+mod cache;
+mod config;
 mod jsonl;
 mod markdown;
-mod config;
 mod project;
-mod cache;
 
+pub use cache::{Cache, CacheError, CachedAnchor, CachedTask, SearchResult, SearchResultType};
+pub use config::{CompactionConfig, CompactionStrategy, Config, ConfigError};
 pub use jsonl::TaskStore;
 pub use markdown::AnchorStore;
-pub use config::{Config, ConfigError, CompactionConfig, CompactionStrategy};
 pub use project::{Project, ProjectError};
-pub use cache::{Cache, CacheError, CachedAnchor, CachedTask, SearchResult, SearchResultType};
