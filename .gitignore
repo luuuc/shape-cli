@@ -11,3 +11,7 @@
 shape-mcp/node_modules/
 shape-mcp/dist/
 shape-mcp/*.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc

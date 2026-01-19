@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+
+import json
+import sys
+from datetime import datetime, timezone
+
+SYNC_FILE = "shape-sync.json"
+
+MANIFEST = {
+    "name": "shape-sync-jsonfile-python",
+    "version": "1.0.0",
+    "description": "Sync briefs to local JSON file (Python)",
+    "type": "sync",
+    "operations": ["push", "pull", "status", "test"],
+}
+
+
+def handle_test():
+    return {"success": True}
+
+
+def handle_push(params):
+    briefs = params.get("briefs", [])
+    tasks = params.get("tasks", [])
+
+    data = {
+        "briefs": briefs,
+        "tasks": tasks,
+        "synced_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+
+    with open(SYNC_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+    return {
+        "success": True,
+        "data": {
+            "pushed": len(briefs),
+            "pulled": 0,
+            "conflicts": 0,
+            "errors": [],
+            "mappings": [],
+        },
+    }
+
+
+def handle_pull():
+    try:
+        with open(SYNC_FILE) as f:
+            content = json.load(f)
+    except FileNotFoundError:
+        return {
+            "success": True,
+            "data": {
+                "briefs": [],
+                "tasks": [],
+                "mappings": [],
+                "pushed": 0,
+                "pulled": 0,
+                "conflicts": 0,
+                "errors": [],
+            },
+        }
+
+    briefs = content.get("briefs", [])
+    tasks = content.get("tasks", [])
+
+    return {
+        "success": True,
+        "data": {
+            "briefs": briefs,
+            "tasks": tasks,
+            "mappings": [],
+            "pushed": 0,
+            "pulled": len(briefs),
+            "conflicts": 0,
+            "errors": [],
+        },
+    }
+
+
+def handle_status():
+    return {
+        "success": True,
+        "data": {
+            "mapped_briefs": 0,
+            "mapped_tasks": 0,
+        },
+    }
+
+
+def handle_request(request):
+    operation = request.get("operation")
+    params = request.get("params", {})
+
+    if operation == "test":
+        return handle_test()
+    elif operation == "push":
+        return handle_push(params)
+    elif operation == "pull":
+        return handle_pull()
+    elif operation == "status":
+        return handle_status()
+    else:
+        return {"success": False, "error": f"Unknown operation: {operation}"}
+
+
+if __name__ == "__main__":
+    if "--manifest" in sys.argv:
+        print(json.dumps(MANIFEST))
+    else:
+        request = json.loads(sys.stdin.readline())
+        response = handle_request(request)
+        print(json.dumps(response))
