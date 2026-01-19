@@ -1,30 +1,60 @@
 # Shape CLI
 
-A local-first task management tool for software teams. Organize work around "briefs" (pitches, RFCs, PRDs) with dependent tasks and AI-optimized context export.
+Turn documents into tasks. Turn tasks into AI context.
+Git-backed, local-first project management for humans and AI agents.
+
+[![Crates.io](https://img.shields.io/crates/v/shape-cli.svg)](https://crates.io/crates/shape-cli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+## The Problem
+
+Your documents (epics, PRDs, RFCs, Pitches) live in one place. Your tasks live in another. AI agents can't see either. You copy-paste between tools and lose context.
+
+## The Solution
+
+Shape stores **briefs** alongside the **tasks** they spawn. Both are git-backed. Both are AI-readable.
+
+**Briefs** can be any document that drives work:
+- Epics, User Stories (Agile/Scrum)
+- PRDs (Product teams)
+- RFCs, ADRs (Engineering)
+- Pitches (ShapeUp)
+
+```
+Brief (Markdown)  →  Tasks (JSONL)  →  AI Context
+"The Why"            "The What"        "What Agents See"
+```
+
+## Quick Start
+
+```bash
+# Install
+cargo install shape-cli
+
+# Initialize
+shape init
+
+# Create a brief and add tasks
+shape brief new "User Authentication"
+# → Created brief b-7f2a3b1
+
+shape task add b-7f2a3b1 "Set up OAuth provider"
+shape task add b-7f2a3b1 "Build login endpoint"
+shape task add b-7f2a3b1 "Add session management"
+
+# Set dependencies
+shape task dep b-7f2a3b1.2 b-7f2a3b1.1   # login waits for OAuth
+shape task dep b-7f2a3b1.3 b-7f2a3b1.2   # sessions wait for login
+
+# See what's ready
+shape ready
+# → b-7f2a3b1.1  Set up OAuth provider
+
+# Export for AI
+shape context --compact
+```
 
 ## Installation
-
-### npm (Node.js)
-
-```bash
-npm install -g shape-cli
-# or use without installing
-npx shape-cli ready
-```
-
-### pip (Python)
-
-```bash
-pip install shape-cli
-```
-
-### gem (Ruby)
-
-```bash
-gem install shape-cli
-# or add to Gemfile
-gem "shape-cli"
-```
 
 ### Cargo (Rust)
 
@@ -38,6 +68,27 @@ cargo install shape-cli
 brew install shape-cli/tap/shape-cli
 ```
 
+<details>
+<summary>Other installation options</summary>
+
+### npm (Node.js)
+
+```bash
+npm install -g shape-cli
+```
+
+### pip (Python)
+
+```bash
+pip install shape-cli
+```
+
+### gem (Ruby)
+
+```bash
+gem install shape-cli
+```
+
 ### Pre-built binaries
 
 Download from [GitHub Releases](https://github.com/shape-cli/shape/releases):
@@ -48,231 +99,63 @@ Download from [GitHub Releases](https://github.com/shape-cli/shape/releases):
 | macOS (Intel) | `shape-darwin-x64.tar.gz` |
 | Linux (x64) | `shape-linux-x64.tar.gz` |
 | Linux (ARM64) | `shape-linux-arm64.tar.gz` |
-| Linux (Alpine/musl) | `shape-linux-x64-musl.tar.gz` |
 | Windows (x64) | `shape-windows-x64.zip` |
 
-## Quick Start
+</details>
 
-```bash
-# Initialize a project
-shape init
+## Features
 
-# Create a brief (pitch/RFC/etc)
-shape brief new "My Feature Pitch" --type shapeup
+### Core
+- **Briefs** — Human-editable markdown documents with YAML frontmatter
+- **Tasks** — Machine-readable JSONL with dependency tracking
+- **Ready queue** — `shape ready` shows unblocked tasks
+- **Search** — Full-text search across briefs and tasks
 
-# Add tasks to the brief
-shape task add b-1234567 "Build the API"
-shape task add b-1234567 "Write tests"
+### AI Integration
+- **Context export** — `shape context --compact` for minimal tokens
+- **Agent setup** — `shape agent-setup` configures Claude, Cursor, Windsurf
+- **MCP server** — Native Model Context Protocol support
+- **JSON output** — `--format json` on all commands
 
-# Set dependencies
-shape task dep b-1234567.2 b-1234567.1
+### Multi-Agent Coordination
+- **Claims** — `shape claim` / `shape unclaim` for task ownership
+- **Next task** — `shape next` suggests optimal task to work on
+- **Handoffs** — `shape handoff` transfers work between agents
+- **History** — `shape history` shows task timeline
+- **Notes & links** — Attach context, commits, PRs to tasks
 
-# See what's ready to work on
-shape ready
+### Infrastructure
+- **TUI viewer** — `shape tui` for interactive browsing
+- **Background daemon** — `shape daemon` for automatic git sync
+- **Memory compaction** — `shape compact` summarizes old tasks
+- **Merge driver** — Conflict resolution for concurrent edits
 
-# Export context for AI
-shape context --compact
-```
-
-## Commands
+## Essential Commands
 
 | Command | Description |
 |---------|-------------|
-| `shape init` | Initialize a new shape project |
-| `shape brief new "Title"` | Create a new brief |
-| `shape brief list` | List all briefs |
-| `shape brief show <id>` | Show brief details |
-| `shape brief status <id> <status>` | Update brief status |
-| `shape task add <parent> "Title"` | Add a task |
-| `shape task list <brief>` | List tasks for a brief |
-| `shape task show <id>` | Show task details |
+| `shape ready` | Show tasks ready to work on |
+| `shape next` | Suggest the best next task |
 | `shape task start <id>` | Mark task in progress |
 | `shape task done <id>` | Mark task complete |
-| `shape task dep <task> <depends-on>` | Add dependency |
-| `shape task undep <task> <depends-on>` | Remove dependency |
-| `shape task meta <id> <key> <value>` | Set task metadata |
-| `shape ready` | Show unblocked tasks |
-| `shape blocked` | Show blocked tasks |
-| `shape status` | Project overview |
-| `shape context` | Export for AI |
-| `shape plugin list` | List plugins |
-| `shape plugin test <name>` | Test plugin connectivity |
-| `shape sync run <plugin>` | Sync with external tool |
-| `shape sync status` | Show sync status |
-| `shape sync link <local> <remote>` | Link IDs manually |
+| `shape context --compact` | Export state for AI |
+| `shape tui` | Interactive terminal UI |
 
-## Brief Types
+## Documentation
 
-### Minimal (default)
+- [Quick Start](docs/QUICKSTART.md) — Your first 5 minutes
+- [Commands](docs/COMMANDS.md) — Full reference
+- [Briefs Guide](docs/BRIEFS.md) — Document types and templates
+- [AI Integration](docs/AI_INTEGRATION.md) — Claude, Cursor, MCP setup
+- [Multi-Agent](docs/MULTI_AGENT.md) — Coordination for teams
+- [Plugins](docs/PLUGINS.md) — Build your own
+- [Storage](docs/STORAGE.md) — File formats and structure
+- [FAQ](docs/FAQ.md) — Common questions
 
-Basic brief with title and status.
+## Contributing
 
-### ShapeUp
-
-Full ShapeUp pitch template with:
-- Problem statement
-- Appetite (6-weeks, 2-weeks, 1-week)
-- Solution overview
-- Rabbit holes to avoid
-- No-gos (out of scope)
-
-```bash
-shape brief new "My Pitch" --type shapeup
-```
-
-## Storage
-
-Data is stored in `.shape/`:
-- `briefs/*.md` - Markdown files with YAML frontmatter
-- `tasks.jsonl` - Task data in JSON Lines format
-- `config.toml` - Project configuration
-
-Briefs are human-editable markdown files.
-
-## AI Context Export
-
-Export project state in a format optimized for AI agents:
-
-```bash
-# Full context
-shape context
-
-# Compact (minimal tokens)
-shape context --compact
-
-# Single brief
-shape context --brief b-1234567
-
-# Include older completed tasks
-shape context --days 14
-```
-
-## Sync Plugins
-
-Shape supports bidirectional sync with external tools via plugins.
-
-```bash
-# Sync with GitHub (requires shape-sync-github plugin)
-shape sync run github
-
-# Check sync status
-shape sync status
-
-# Manually link a local brief to a remote issue
-shape sync link b-1234567 123 --plugin github
-```
-
-## Plugin Development
-
-Plugins communicate via JSON over stdin/stdout. Two plugin types are supported:
-
-### Brief Type Plugins
-
-Create custom brief templates and validation. Binary name format: `shape-brief-<name>`
-
-### Sync Plugins
-
-Bidirectional sync with external tools. Binary name format: `shape-sync-<name>`
-
-Plugin discovery:
-1. `.shape/plugins/` in project directory
-2. Directories in `$PATH`
-
-## AI Integration
-
-Shape CLI is designed for AI agent consumption.
-
-### Quick Setup
-
-```bash
-shape agent-setup  # Auto-configure CLAUDE.md, .cursorrules, etc.
-```
-
-This detects existing AI config files and adds Shape CLI instructions. Supports:
-- `CLAUDE.md` (Claude Code)
-- `.cursorrules` (Cursor)
-- `.windsurfrules` (Windsurf)
-- `AGENTS.md` (generic)
-
-Options:
-- `--show` - Preview instructions without writing
-- `--claude` - Only configure CLAUDE.md
-- `--cursor` - Only configure .cursorrules
-- `--windsurf` - Only configure .windsurfrules
-
-### Manual Integration
-
-Add to your AI config file:
-- Check `shape ready` for available tasks
-- Use `shape context --compact` for token-efficient project state
-- Mark tasks with `shape task start/done`
-
-### Output Formats
-
-All commands support `--format json` for machine parsing:
-
-```bash
-shape ready --format json
-shape context --compact  # Already optimized for AI
-```
-
-### Example Workflow
-
-```bash
-# AI agent checks what's ready
-shape ready --format json
-
-# Starts working on a task
-shape task start b-abc1234.1
-
-# Completes the task
-shape task done b-abc1234.1
-
-# Gets full context if needed
-shape context --compact
-```
-
-## CI/CD Integration
-
-### GitHub Actions
-
-```yaml
-- name: Install Shape CLI
-  run: npm install -g shape-cli
-
-- name: Check ready tasks
-  run: shape ready --format json
-```
-
-### GitLab CI
-
-```yaml
-install_shape:
-  script:
-    - pip install shape-cli
-    - shape ready
-```
-
-### Generic (download binary)
-
-```bash
-curl -fsSL https://github.com/shape-cli/shape/releases/latest/download/shape-linux-x64.tar.gz | tar -xz
-./shape ready
-```
-
-## Building from Source
-
-```bash
-# Development
-cargo build
-
-# Release
-cargo build --release
-
-# Tests
-cargo test
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 
-MIT
+[MIT](LICENSE)
