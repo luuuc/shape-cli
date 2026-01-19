@@ -5,8 +5,8 @@ use clap::{Parser, Subcommand};
 
 use super::output::{Output, OutputFormat};
 use super::{
-    agent_setup, anchor, cache_cmd, compact, context, merge_driver, plugin_cmd, query, sync_cmd,
-    task,
+    agent_setup, anchor, cache_cmd, compact, context, daemon, merge_driver, plugin_cmd, query,
+    sync_cmd, task,
 };
 use crate::storage::Project;
 
@@ -148,6 +148,10 @@ pub enum Commands {
     /// Configure git merge driver for this repository
     MergeSetup,
 
+    /// Background daemon for automatic git sync
+    #[command(subcommand)]
+    Daemon(daemon::DaemonCommands),
+
     /// Advanced commands (plugins, sync)
     #[command(subcommand)]
     Advanced(AdvancedCommands),
@@ -264,6 +268,8 @@ pub fn run() -> Result<()> {
         }
 
         Commands::MergeSetup => setup_merge_driver(&output)?,
+
+        Commands::Daemon(cmd) => daemon::run(cmd, &output)?,
 
         Commands::Advanced(advanced_cmd) => match advanced_cmd {
             AdvancedCommands::Plugin(cmd) => plugin_cmd::run(cmd, &output)?,

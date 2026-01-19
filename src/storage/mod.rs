@@ -45,7 +45,7 @@ mod markdown;
 mod project;
 
 pub use cache::{Cache, CacheError, CachedAnchor, CachedTask, SearchResult, SearchResultType};
-pub use config::{CompactionConfig, CompactionStrategy, Config, ConfigError};
+pub use config::{CompactionConfig, CompactionStrategy, Config, ConfigError, DaemonConfig};
 pub use jsonl::TaskStore;
 pub use markdown::AnchorStore;
 pub use project::{Project, ProjectError};

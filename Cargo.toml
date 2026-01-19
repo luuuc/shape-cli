@@ -45,6 +45,10 @@ directories = "6"
 # SQLite cache
 rusqlite = { version = "0.32", features = ["bundled"] }
 
+# Filesystem watching for daemon
+notify = "7"
+notify-debouncer-mini = "0.5"
+
 
 [dev-dependencies]
 # CLI testing

@@ -36,6 +36,7 @@ mod app;
 mod cache_cmd;
 mod compact;
 mod context;
+mod daemon;
 mod merge_driver;
 mod output;
 mod plugin_cmd;

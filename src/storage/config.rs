@@ -85,6 +85,46 @@ impl Default for CompactionConfig {
     }
 }
 
+/// Configuration for the background daemon
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DaemonConfig {
+    /// Enable daemon functionality
+    pub enabled: bool,
+
+    /// Debounce delay in seconds before committing
+    pub debounce_seconds: u64,
+
+    /// Auto-commit changes to git
+    pub auto_commit: bool,
+
+    /// Commit message format (placeholders: {action}, {id}, {count})
+    pub commit_message_format: String,
+
+    /// Auto-push to remote after commit
+    pub auto_push: bool,
+
+    /// Remote name for auto-push
+    pub push_remote: String,
+
+    /// Branch name for auto-push
+    pub push_branch: String,
+}
+
+impl Default for DaemonConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            debounce_seconds: 5,
+            auto_commit: true,
+            commit_message_format: "shape: {action} {id}".to_string(),
+            auto_push: false,
+            push_remote: "origin".to_string(),
+            push_branch: "main".to_string(),
+        }
+    }
+}
+
 /// Project-level configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -100,6 +140,9 @@ pub struct ProjectConfig {
 
     /// Compaction settings
     pub compaction: CompactionConfig,
+
+    /// Daemon settings
+    pub daemon: DaemonConfig,
 }
 
 impl ProjectConfig {
@@ -109,6 +152,7 @@ impl ProjectConfig {
             plugins: vec![],
             context_days: 7,
             compaction: CompactionConfig::default(),
+            daemon: DaemonConfig::default(),
         }
     }
 }

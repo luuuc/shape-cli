@@ -1174,3 +1174,89 @@ fn test_compact_and_context_integration() {
     let compacted_after = context_undo_json["tasks"]["compacted"].as_array().unwrap();
     assert!(compacted_after.is_empty());
 }
+
+// =============================================================================
+// Daemon Tests
+// =============================================================================
+
+#[test]
+fn test_daemon_status_not_running() {
+    let dir = setup_project();
+
+    // Daemon status should show not running and the project path
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["daemon", "status"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("STOPPED"))
+        .stdout(predicate::str::contains("Project:"));
+}
+
+#[test]
+fn test_daemon_status_json() {
+    let dir = setup_project();
+
+    // Daemon status with JSON output
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["daemon", "status", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    assert!(!json["running"].as_bool().unwrap());
+    assert!(json["config"].is_object());
+    assert!(json["config"]["enabled"].as_bool().unwrap());
+    assert!(json["project"].is_string()); // Per-project daemon includes project path
+}
+
+#[test]
+fn test_daemon_stop_when_not_running() {
+    let dir = setup_project();
+
+    // Stopping when not running should be graceful
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["daemon", "stop"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("not running for this project"));
+}
+
+#[test]
+fn test_daemon_logs_no_file() {
+    let dir = setup_project();
+
+    // Logs when no log file exists
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["daemon", "logs"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No daemon logs found for this project"));
+}
+
+#[test]
+fn test_daemon_config_in_project() {
+    let dir = setup_project();
+
+    // Default config doesn't include daemon section, but it's loaded with defaults
+    // Just verify the command can read config
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["daemon", "status", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    // Check default daemon config values are present
+    assert!(json["config"]["enabled"].as_bool().unwrap());
+    assert!(json["config"]["auto_commit"].as_bool().unwrap());
+    assert!(!json["config"]["auto_push"].as_bool().unwrap());
+    assert_eq!(json["config"]["debounce_seconds"].as_u64().unwrap(), 5);
+}

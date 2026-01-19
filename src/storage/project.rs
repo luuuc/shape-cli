@@ -113,6 +113,11 @@ sync/
 
 # Ignore plugin cache
 plugins/*.cache
+
+# Ignore daemon files (local to each machine)
+daemon.pid
+daemon.log
+daemon.log.*
 "#;
             fs::write(&gitignore_path, gitignore).with_context(|| {
                 format!("Failed to write .gitignore: {}", gitignore_path.display())
