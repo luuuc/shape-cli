@@ -322,12 +322,11 @@ impl Cache {
                 } else {
                     Some(serde_json::to_string(&task.meta)?)
                 };
-                let depends_on: Vec<String> =
-                    task.depends_on.iter().map(|d| d.to_string()).collect();
-                let depends_on_json = if depends_on.is_empty() {
+                // Serialize all dependencies (with type info) for the depends_on column
+                let depends_on_json = if task.depends_on.is_empty() {
                     None
                 } else {
-                    Some(serde_json::to_string(&depends_on)?)
+                    Some(serde_json::to_string(&task.depends_on)?)
                 };
 
                 stmt.execute(params![
@@ -345,14 +344,14 @@ impl Cache {
             }
         }
 
-        // Insert dependencies
+        // Insert blocking dependencies (only blocking dependencies affect ready/blocked queries)
         {
             let mut stmt =
                 tx.prepare("INSERT INTO dependencies (task_id, depends_on_id) VALUES (?1, ?2)")?;
 
             for task in tasks.values() {
-                for dep in &task.depends_on {
-                    stmt.execute(params![task.id.to_string(), dep.to_string()])?;
+                for dep_id in task.depends_on.blocking_task_ids() {
+                    stmt.execute(params![task.id.to_string(), dep_id.to_string()])?;
                 }
             }
         }

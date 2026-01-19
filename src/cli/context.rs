@@ -159,7 +159,7 @@ fn export_compact(
         .iter()
         .filter(|t| blocked_ids.contains(&t.id))
         .map(|t| {
-            let deps: Vec<_> = t.depends_on.iter().map(|d| d.to_string()).collect();
+            let deps: Vec<_> = t.depends_on.blocking_task_ids().map(|d| d.to_string()).collect();
             format!("{}: {} (blocked by {})", t.id, t.title, deps.join(", "))
         })
         .collect();
@@ -184,7 +184,7 @@ fn export_compact(
 
         "blocked": blocked_ids.iter().filter_map(|id| {
             tasks.get(id).map(|t| {
-                let deps: Vec<_> = t.depends_on.iter().map(|d| d.to_string()).collect();
+                let deps: Vec<_> = t.depends_on.blocking_task_ids().map(|d| d.to_string()).collect();
                 format!("{}: {} (blocked by {})", t.id, t.title, deps.join(", "))
             })
         }).collect::<Vec<_>>(),
@@ -260,7 +260,7 @@ fn export_full(
         .map(|t| {
             let blocking: Vec<_> = t
                 .depends_on
-                .iter()
+                .blocking_task_ids()
                 .filter_map(|dep_id| {
                     if !statuses
                         .get(dep_id)
@@ -333,7 +333,7 @@ fn export_full(
 
             "blocked": blocked_ids.iter().filter_map(|id| {
                 tasks.get(id).map(|t| {
-                    let blocking: Vec<_> = t.depends_on.iter().filter_map(|dep_id| {
+                    let blocking: Vec<_> = t.depends_on.blocking_task_ids().filter_map(|dep_id| {
                         if !statuses.get(dep_id).map(|s| s.is_complete()).unwrap_or(false) {
                             tasks.get(dep_id).map(|dep| {
                                 serde_json::json!({

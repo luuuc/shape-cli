@@ -277,7 +277,7 @@ fn test_task_dependencies() {
         .args(["task", "dep", task2_id, task1_id])
         .assert()
         .success()
-        .stdout(predicate::str::contains("now depends on"));
+        .stdout(predicate::str::contains("now blocked by"));
 
     // Check blocked shows task2
     shape_cmd()
@@ -860,7 +860,7 @@ fn test_standalone_task_dependencies() {
         .args(["task", "dep", &task2_id, &task1_id])
         .assert()
         .success()
-        .stdout(predicate::str::contains("now depends on"));
+        .stdout(predicate::str::contains("now blocked by"));
 
     // Check blocked shows task2
     shape_cmd()

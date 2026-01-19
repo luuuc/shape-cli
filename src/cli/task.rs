@@ -56,11 +56,27 @@ pub enum TaskCommands {
 
     /// Add a dependency between tasks
     Dep {
-        /// Task that will be blocked
+        /// Task that will be blocked (or linked)
         task: String,
 
-        /// Task that must be completed first
+        /// Task that must be completed first (or related task)
         depends_on: String,
+
+        /// Create a blocking dependency (default)
+        #[arg(long, conflicts_with_all = ["from", "related", "duplicates"])]
+        blocks: bool,
+
+        /// Create a provenance link (t-2 was created because of t-1)
+        #[arg(long, alias = "provenance", conflicts_with_all = ["blocks", "related", "duplicates"])]
+        from: bool,
+
+        /// Create a related link (informational)
+        #[arg(long, conflicts_with_all = ["blocks", "from", "duplicates"])]
+        related: bool,
+
+        /// Create a duplicates link (t-2 duplicates t-1)
+        #[arg(long, conflicts_with_all = ["blocks", "from", "related"])]
+        duplicates: bool,
     },
 
     /// Remove a dependency
@@ -70,6 +86,53 @@ pub enum TaskCommands {
 
         /// Dependency to remove
         depends_on: String,
+
+        /// Remove only blocking dependencies
+        #[arg(long)]
+        blocks: bool,
+
+        /// Remove only provenance links
+        #[arg(long)]
+        from: bool,
+
+        /// Remove only related links
+        #[arg(long)]
+        related: bool,
+
+        /// Remove only duplicate links
+        #[arg(long)]
+        duplicates: bool,
+    },
+
+    /// Add a related link between tasks (alias for dep --related)
+    Link {
+        /// First task
+        task: String,
+
+        /// Related task
+        related_to: String,
+    },
+
+    /// Mark provenance: task was created because of another (alias for dep --from)
+    Provenance {
+        /// Task that was created
+        task: String,
+
+        /// Task it originated from
+        from: String,
+    },
+
+    /// Mark task as duplicate of another (alias for dep --duplicates)
+    Dup {
+        /// Duplicate task
+        task: String,
+
+        /// Original task
+        original: String,
+
+        /// Also mark the duplicate task as done
+        #[arg(long)]
+        close: bool,
     },
 
     /// Set task metadata
@@ -86,6 +149,8 @@ pub enum TaskCommands {
 }
 
 pub fn run(cmd: TaskCommands, output: &Output) -> Result<()> {
+    use crate::domain::DependencyType;
+
     match cmd {
         TaskCommands::Add { first, second } => {
             // Determine if this is standalone or anchored based on arguments:
@@ -103,8 +168,57 @@ pub fn run(cmd: TaskCommands, output: &Output) -> Result<()> {
         TaskCommands::Show { id } => show_task(output, &id),
         TaskCommands::Start { id } => start_task(output, &id),
         TaskCommands::Done { id } => complete_task(output, &id),
-        TaskCommands::Dep { task, depends_on } => add_dependency(output, &task, &depends_on),
-        TaskCommands::Undep { task, depends_on } => remove_dependency(output, &task, &depends_on),
+        TaskCommands::Dep {
+            task,
+            depends_on,
+            blocks: _, // Default, not used in selection
+            from,
+            related,
+            duplicates,
+        } => {
+            let dep_type = if from {
+                DependencyType::Provenance
+            } else if related {
+                DependencyType::Related
+            } else if duplicates {
+                DependencyType::Duplicates
+            } else {
+                DependencyType::Blocks // default
+            };
+            add_typed_dependency(output, &task, &depends_on, dep_type)
+        }
+        TaskCommands::Undep {
+            task,
+            depends_on,
+            blocks,
+            from,
+            related,
+            duplicates,
+        } => {
+            let dep_type = if blocks {
+                Some(DependencyType::Blocks)
+            } else if from {
+                Some(DependencyType::Provenance)
+            } else if related {
+                Some(DependencyType::Related)
+            } else if duplicates {
+                Some(DependencyType::Duplicates)
+            } else {
+                None // remove all types
+            };
+            remove_typed_dependency(output, &task, &depends_on, dep_type)
+        }
+        TaskCommands::Link { task, related_to } => {
+            add_typed_dependency(output, &task, &related_to, DependencyType::Related)
+        }
+        TaskCommands::Provenance { task, from } => {
+            add_typed_dependency(output, &task, &from, DependencyType::Provenance)
+        }
+        TaskCommands::Dup {
+            task,
+            original,
+            close,
+        } => add_duplicate(output, &task, &original, close),
         TaskCommands::Meta { id, key, value } => set_meta(output, &id, &key, &value),
     }
 }
@@ -201,7 +315,12 @@ fn list_tasks(output: &Output, anchor_str: Option<&str>, standalone_only: bool) 
                     "status": t.status,
                     "standalone": t.is_standalone(),
                     "anchor_id": t.anchor_id().map(|a| a.to_string()),
-                    "depends_on": t.depends_on.iter().map(|d| d.to_string()).collect::<Vec<_>>(),
+                    "depends_on": t.depends_on.iter().map(|d| {
+                        serde_json::json!({
+                            "task": d.task.to_string(),
+                            "type": d.dep_type,
+                        })
+                    }).collect::<Vec<_>>(),
                 })
             })
             .collect();
@@ -260,7 +379,12 @@ fn show_task(output: &Output, id_str: &str) -> Result<()> {
             "status": task.status,
             "standalone": task.is_standalone(),
             "anchor_id": task.anchor_id().map(|a| a.to_string()),
-            "depends_on": task.depends_on.iter().map(|d| d.to_string()).collect::<Vec<_>>(),
+            "depends_on": task.depends_on.iter().map(|d| {
+                serde_json::json!({
+                    "task": d.task.to_string(),
+                    "type": d.dep_type,
+                })
+            }).collect::<Vec<_>>(),
             "created_at": task.created_at,
             "updated_at": task.updated_at,
             "completed_at": task.completed_at,
@@ -285,14 +409,46 @@ fn show_task(output: &Output, id_str: &str) -> Result<()> {
             println!("Completed: {}", completed.format("%Y-%m-%d %H:%M"));
         }
 
-        if !task.depends_on.is_empty() {
-            println!("\nDepends on:");
-            for dep in &task.depends_on {
+        // Display dependencies grouped by type
+        use crate::domain::DependencyType;
+        let blocking: Vec<_> = task.depends_on.by_type(DependencyType::Blocks).collect();
+        let provenance: Vec<_> = task.depends_on.by_type(DependencyType::Provenance).collect();
+        let related: Vec<_> = task.depends_on.by_type(DependencyType::Related).collect();
+        let duplicates: Vec<_> = task.depends_on.by_type(DependencyType::Duplicates).collect();
+
+        if !blocking.is_empty() {
+            println!("\nDependencies:");
+            for dep in &blocking {
                 let dep_status = statuses
-                    .get(dep)
+                    .get(&dep.task)
                     .map(|s| format!("{:?}", s))
                     .unwrap_or_else(|| "?".to_string());
-                println!("  {} ({})", dep, dep_status);
+                println!("  [{}] {}: {} ({})", dep.dep_type.label(), dep.task,
+                    tasks.get(&dep.task).map(|t| t.title.as_str()).unwrap_or("?"), dep_status);
+            }
+        }
+
+        if !provenance.is_empty() {
+            println!("\nProvenance:");
+            for dep in &provenance {
+                println!("  [{}] {}: {}", dep.dep_type.label(), dep.task,
+                    tasks.get(&dep.task).map(|t| t.title.as_str()).unwrap_or("?"));
+            }
+        }
+
+        if !related.is_empty() {
+            println!("\nRelated:");
+            for dep in &related {
+                println!("  [{}] {}: {}", dep.dep_type.label(), dep.task,
+                    tasks.get(&dep.task).map(|t| t.title.as_str()).unwrap_or("?"));
+            }
+        }
+
+        if !duplicates.is_empty() {
+            println!("\nDuplicates:");
+            for dep in &duplicates {
+                println!("  [{}] {}: {} (WARNING: may be duplicate)", dep.dep_type.label(), dep.task,
+                    tasks.get(&dep.task).map(|t| t.title.as_str()).unwrap_or("?"));
             }
         }
 
@@ -372,7 +528,14 @@ fn complete_task(output: &Output, id_str: &str) -> Result<()> {
     Ok(())
 }
 
-fn add_dependency(output: &Output, task_str: &str, depends_on_str: &str) -> Result<()> {
+fn add_typed_dependency(
+    output: &Output,
+    task_str: &str,
+    depends_on_str: &str,
+    dep_type: crate::domain::DependencyType,
+) -> Result<()> {
+    use crate::domain::Dependency;
+
     let project = Project::open_current()?;
     let store = project.task_store();
 
@@ -389,28 +552,48 @@ fn add_dependency(output: &Output, task_str: &str, depends_on_str: &str) -> Resu
         anyhow::bail!("Dependency task not found: {}", depends_on_id);
     }
 
-    // Check for cycles using the graph
-    let mut graph = DependencyGraph::from_tasks(tasks.values())?;
-    graph.add_dependency(&task_id, &depends_on_id)?;
+    // Only check for cycles with blocking dependencies
+    if dep_type.affects_ready() {
+        let mut graph = DependencyGraph::from_tasks(tasks.values())?;
+        graph.add_dependency(&task_id, &depends_on_id)?;
+    }
+
+    // Create the typed dependency
+    let dependency = Dependency {
+        task: depends_on_id.clone(),
+        dep_type,
+    };
 
     // Update the task
     let task = tasks.get_mut(&task_id).unwrap();
-    task.add_dependency(depends_on_id.clone());
+    task.add_typed_dependency(dependency);
     store.update(task)?;
 
     if output.is_json() {
         output.data(&serde_json::json!({
             "task": task_id.to_string(),
             "depends_on": depends_on_id.to_string(),
+            "type": dep_type,
         }));
     } else {
-        output.success(&format!("{} now depends on {}", task_id, depends_on_id));
+        let label = match dep_type {
+            crate::domain::DependencyType::Blocks => "now blocked by",
+            crate::domain::DependencyType::Provenance => "originated from",
+            crate::domain::DependencyType::Related => "now linked to",
+            crate::domain::DependencyType::Duplicates => "marked as duplicate of",
+        };
+        output.success(&format!("{} {} {}", task_id, label, depends_on_id));
     }
 
     Ok(())
 }
 
-fn remove_dependency(output: &Output, task_str: &str, depends_on_str: &str) -> Result<()> {
+fn remove_typed_dependency(
+    output: &Output,
+    task_str: &str,
+    depends_on_str: &str,
+    dep_type: Option<crate::domain::DependencyType>,
+) -> Result<()> {
     let project = Project::open_current()?;
     let store = project.task_store();
 
@@ -423,18 +606,77 @@ fn remove_dependency(output: &Output, task_str: &str, depends_on_str: &str) -> R
         .get_mut(&task_id)
         .ok_or_else(|| anyhow::anyhow!("Task not found: {}", task_id))?;
 
-    task.remove_dependency(&depends_on_id);
+    if let Some(dt) = dep_type {
+        task.remove_typed_dependency(&depends_on_id, dt);
+    } else {
+        task.remove_dependency(&depends_on_id);
+    }
     store.update(task)?;
 
     if output.is_json() {
         output.data(&serde_json::json!({
             "task": task_id.to_string(),
             "removed_dependency": depends_on_id.to_string(),
+            "type": dep_type,
         }));
     } else {
+        let type_str = dep_type
+            .map(|dt| format!(" ({} link)", dt.label()))
+            .unwrap_or_default();
         output.success(&format!(
-            "Removed dependency: {} no longer depends on {}",
-            task_id, depends_on_id
+            "Removed dependency{}: {} no longer depends on {}",
+            type_str, task_id, depends_on_id
+        ));
+    }
+
+    Ok(())
+}
+
+fn add_duplicate(
+    output: &Output,
+    task_str: &str,
+    original_str: &str,
+    close: bool,
+) -> Result<()> {
+    use crate::domain::Dependency;
+
+    let project = Project::open_current()?;
+    let store = project.task_store();
+
+    let task_id: TaskId = task_str.parse()?;
+    let original_id: TaskId = original_str.parse()?;
+
+    let mut tasks = store.read_all()?;
+
+    // Verify both tasks exist
+    if !tasks.contains_key(&task_id) {
+        anyhow::bail!("Task not found: {}", task_id);
+    }
+    if !tasks.contains_key(&original_id) {
+        anyhow::bail!("Original task not found: {}", original_id);
+    }
+
+    // Update the task
+    let task = tasks.get_mut(&task_id).unwrap();
+    task.add_typed_dependency(Dependency::duplicates(original_id.clone()));
+
+    if close {
+        task.complete();
+    }
+
+    store.update(task)?;
+
+    if output.is_json() {
+        output.data(&serde_json::json!({
+            "task": task_id.to_string(),
+            "duplicates": original_id.to_string(),
+            "closed": close,
+        }));
+    } else {
+        let close_msg = if close { " (closed)" } else { "" };
+        output.success(&format!(
+            "{} marked as duplicate of {}{}",
+            task_id, original_id, close_msg
         ));
     }
 

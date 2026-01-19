@@ -43,6 +43,9 @@ impl DependencyGraph {
     }
 
     /// Builds a graph from a collection of tasks
+    ///
+    /// Only blocking dependencies are added to the graph for cycle detection.
+    /// Informational dependencies (provenance, related, duplicates) don't affect the graph.
     pub fn from_tasks<'a>(tasks: impl IntoIterator<Item = &'a Task>) -> Result<Self, GraphError> {
         let mut graph = Self::new();
 
@@ -52,9 +55,9 @@ impl DependencyGraph {
             graph.add_task(task.id.clone());
         }
 
-        // Second pass: add all edges
+        // Second pass: add all blocking dependency edges
         for task in &tasks {
-            for dep_id in &task.depends_on {
+            for dep_id in task.depends_on.blocking_task_ids() {
                 graph.add_dependency(&task.id, dep_id)?;
             }
         }

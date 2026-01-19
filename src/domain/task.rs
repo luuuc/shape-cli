@@ -4,10 +4,239 @@
 //! They can have dependencies on other tasks and support subtasks.
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::HashMap;
 
 use super::id::{AnchorId, TaskId};
+
+/// Type of dependency between tasks
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DependencyType {
+    /// Task A must complete before Task B can start (affects ready/blocked)
+    #[default]
+    Blocks,
+    /// Task B was created because of Task A (informational)
+    Provenance,
+    /// Tasks are related but don't block each other (informational)
+    Related,
+    /// Task B is a duplicate of Task A (informational)
+    Duplicates,
+}
+
+impl DependencyType {
+    /// Returns true if this dependency type affects the ready queue
+    pub fn affects_ready(&self) -> bool {
+        matches!(self, DependencyType::Blocks)
+    }
+
+    /// Returns a display label for the dependency type
+    pub fn label(&self) -> &'static str {
+        match self {
+            DependencyType::Blocks => "blocks",
+            DependencyType::Provenance => "from",
+            DependencyType::Related => "link",
+            DependencyType::Duplicates => "dup",
+        }
+    }
+}
+
+/// A typed dependency on another task
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Dependency {
+    /// The task this depends on
+    pub task: TaskId,
+    /// The type of dependency
+    #[serde(rename = "type", default)]
+    pub dep_type: DependencyType,
+}
+
+impl Dependency {
+    /// Creates a new blocking dependency
+    pub fn blocks(task: TaskId) -> Self {
+        Self {
+            task,
+            dep_type: DependencyType::Blocks,
+        }
+    }
+
+    /// Creates a new provenance dependency
+    pub fn provenance(task: TaskId) -> Self {
+        Self {
+            task,
+            dep_type: DependencyType::Provenance,
+        }
+    }
+
+    /// Creates a new related dependency
+    pub fn related(task: TaskId) -> Self {
+        Self {
+            task,
+            dep_type: DependencyType::Related,
+        }
+    }
+
+    /// Creates a new duplicates dependency
+    pub fn duplicates(task: TaskId) -> Self {
+        Self {
+            task,
+            dep_type: DependencyType::Duplicates,
+        }
+    }
+}
+
+/// Collection of dependencies with backward-compatible serialization
+///
+/// Old format: `["t-1", "t-2"]` (array of strings, implies blocks)
+/// New format: `[{"task": "t-1", "type": "blocks"}, {"task": "t-2", "type": "provenance"}]`
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Dependencies(Vec<Dependency>);
+
+impl Dependencies {
+    /// Creates an empty dependencies collection
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    /// Adds a dependency
+    pub fn add(&mut self, dep: Dependency) -> bool {
+        if !self.0.iter().any(|d| d.task == dep.task && d.dep_type == dep.dep_type) {
+            self.0.push(dep);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Removes a dependency by task ID and optionally by type
+    pub fn remove(&mut self, task_id: &TaskId, dep_type: Option<DependencyType>) -> bool {
+        let len_before = self.0.len();
+        self.0.retain(|d| {
+            if &d.task != task_id {
+                return true;
+            }
+            if let Some(dt) = dep_type {
+                d.dep_type != dt
+            } else {
+                false
+            }
+        });
+        self.0.len() != len_before
+    }
+
+    /// Returns true if empty
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Returns the number of dependencies
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Iterates over all dependencies
+    pub fn iter(&self) -> impl Iterator<Item = &Dependency> {
+        self.0.iter()
+    }
+
+    /// Returns only blocking dependencies
+    pub fn blocking(&self) -> impl Iterator<Item = &Dependency> {
+        self.0.iter().filter(|d| d.dep_type == DependencyType::Blocks)
+    }
+
+    /// Returns dependencies by type
+    pub fn by_type(&self, dep_type: DependencyType) -> impl Iterator<Item = &Dependency> {
+        self.0.iter().filter(move |d| d.dep_type == dep_type)
+    }
+
+    /// Returns blocking task IDs (for ready/blocked calculations)
+    pub fn blocking_task_ids(&self) -> impl Iterator<Item = &TaskId> {
+        self.blocking().map(|d| &d.task)
+    }
+
+    /// Checks if a specific task ID exists as a dependency
+    pub fn contains(&self, task_id: &TaskId) -> bool {
+        self.0.iter().any(|d| &d.task == task_id)
+    }
+
+    /// Checks if a specific task ID exists as a blocking dependency
+    pub fn contains_blocking(&self, task_id: &TaskId) -> bool {
+        self.blocking().any(|d| &d.task == task_id)
+    }
+}
+
+impl Serialize for Dependencies {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Always serialize as the new format
+        self.0.serialize(serializer)
+    }
+}
+
+impl<'a> IntoIterator for &'a Dependencies {
+    type Item = &'a Dependency;
+    type IntoIter = std::slice::Iter<'a, Dependency>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'de> Deserialize<'de> for Dependencies {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::{SeqAccess, Visitor};
+
+        struct DependenciesVisitor;
+
+        impl<'de> Visitor<'de> for DependenciesVisitor {
+            type Value = Dependencies;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a sequence of dependencies (strings or objects)")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut deps = Vec::new();
+
+                // We need to handle both formats:
+                // Old: ["t-1", "t-2"]
+                // New: [{"task": "t-1", "type": "blocks"}]
+                while let Some(value) = seq.next_element::<serde_json::Value>()? {
+                    let dep = match value {
+                        // Old format: just a string task ID
+                        serde_json::Value::String(s) => {
+                            let task_id: TaskId = s.parse().map_err(serde::de::Error::custom)?;
+                            Dependency::blocks(task_id)
+                        }
+                        // New format: object with task and type
+                        serde_json::Value::Object(obj) => {
+                            serde_json::from_value(serde_json::Value::Object(obj))
+                                .map_err(serde::de::Error::custom)?
+                        }
+                        _ => {
+                            return Err(serde::de::Error::custom(
+                                "expected string or object for dependency",
+                            ))
+                        }
+                    };
+                    deps.push(dep);
+                }
+
+                Ok(Dependencies(deps))
+            }
+        }
+
+        deserializer.deserialize_seq(DependenciesVisitor)
+    }
+}
 
 /// Status of a task
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -184,9 +413,9 @@ pub struct Task {
     /// Current status
     pub status: TaskStatus,
 
-    /// IDs of tasks this task depends on (blocked by)
-    #[serde(default, skip_serializing_if = "HashSet::is_empty")]
-    pub depends_on: HashSet<TaskId>,
+    /// Dependencies on other tasks (typed: blocks, provenance, related, duplicates)
+    #[serde(default, skip_serializing_if = "Dependencies::is_empty")]
+    pub depends_on: Dependencies,
 
     /// When the task was created
     pub created_at: DateTime<Utc>,
@@ -236,7 +465,7 @@ impl Task {
             id,
             title: title.into(),
             status: TaskStatus::Todo,
-            depends_on: HashSet::new(),
+            depends_on: Dependencies::new(),
             created_at: now,
             updated_at: now,
             completed_at: None,
@@ -259,13 +488,14 @@ impl Task {
         self.id.is_standalone()
     }
 
-    /// Returns true if this task has no incomplete dependencies
+    /// Returns true if this task has no incomplete blocking dependencies
     pub fn is_ready(&self, task_statuses: &HashMap<TaskId, TaskStatus>) -> bool {
         if self.status.is_complete() {
             return false; // Completed tasks are not "ready"
         }
 
-        self.depends_on.iter().all(|dep_id| {
+        // Only blocking dependencies affect readiness
+        self.depends_on.blocking_task_ids().all(|dep_id| {
             task_statuses
                 .get(dep_id)
                 .map(|s| s.is_complete())
@@ -273,13 +503,14 @@ impl Task {
         })
     }
 
-    /// Returns true if this task is blocked by incomplete dependencies
+    /// Returns true if this task is blocked by incomplete blocking dependencies
     pub fn is_blocked(&self, task_statuses: &HashMap<TaskId, TaskStatus>) -> bool {
         if self.status.is_complete() {
             return false; // Completed tasks are not "blocked"
         }
 
-        self.depends_on.iter().any(|dep_id| {
+        // Only blocking dependencies affect blocked status
+        self.depends_on.blocking_task_ids().any(|dep_id| {
             task_statuses
                 .get(dep_id)
                 .map(|s| !s.is_complete())
@@ -319,16 +550,28 @@ impl Task {
         }
     }
 
-    /// Adds a dependency on another task
+    /// Adds a blocking dependency on another task (default behavior)
     pub fn add_dependency(&mut self, task_id: TaskId) {
-        if self.depends_on.insert(task_id) {
+        self.add_typed_dependency(Dependency::blocks(task_id));
+    }
+
+    /// Adds a typed dependency on another task
+    pub fn add_typed_dependency(&mut self, dependency: Dependency) {
+        if self.depends_on.add(dependency) {
             self.updated_at = Utc::now();
         }
     }
 
-    /// Removes a dependency
+    /// Removes all dependencies on a task ID
     pub fn remove_dependency(&mut self, task_id: &TaskId) {
-        if self.depends_on.remove(task_id) {
+        if self.depends_on.remove(task_id, None) {
+            self.updated_at = Utc::now();
+        }
+    }
+
+    /// Removes a specific typed dependency
+    pub fn remove_typed_dependency(&mut self, task_id: &TaskId, dep_type: DependencyType) {
+        if self.depends_on.remove(task_id, Some(dep_type)) {
             self.updated_at = Utc::now();
         }
     }
@@ -552,6 +795,86 @@ mod tests {
 
         task2.remove_dependency(&task1.id);
         assert!(!task2.depends_on.contains(&task1.id));
+    }
+
+    #[test]
+    fn typed_dependencies() {
+        let task1 = make_task(1);
+        let task2 = make_task(2);
+        let task3 = make_task(3);
+        let mut task4 = make_task(4);
+
+        // Add different types of dependencies
+        task4.add_typed_dependency(Dependency::blocks(task1.id.clone()));
+        task4.add_typed_dependency(Dependency::provenance(task2.id.clone()));
+        task4.add_typed_dependency(Dependency::related(task3.id.clone()));
+
+        // Check counts
+        assert_eq!(task4.depends_on.len(), 3);
+        assert_eq!(task4.depends_on.blocking().count(), 1);
+        assert_eq!(task4.depends_on.by_type(DependencyType::Provenance).count(), 1);
+        assert_eq!(task4.depends_on.by_type(DependencyType::Related).count(), 1);
+
+        // Only blocking deps affect ready/blocked
+        let mut statuses = HashMap::new();
+        statuses.insert(task1.id.clone(), TaskStatus::Todo);
+        statuses.insert(task2.id.clone(), TaskStatus::Todo);
+        statuses.insert(task3.id.clone(), TaskStatus::Todo);
+
+        assert!(task4.is_blocked(&statuses));
+
+        // Complete only the blocking dependency
+        statuses.insert(task1.id.clone(), TaskStatus::Done);
+
+        // Now ready even though provenance/related deps are incomplete
+        assert!(task4.is_ready(&statuses));
+        assert!(!task4.is_blocked(&statuses));
+    }
+
+    #[test]
+    fn backward_compatible_deserialization() {
+        // Create test task IDs using the proper format
+        let anchor = AnchorId::new("Test", Utc::now());
+        let task_id = TaskId::new(&anchor, 1);
+        let dep1_id = TaskId::new(&anchor, 2);
+        let dep2_id = TaskId::new(&anchor, 3);
+
+        // Old format: array of strings (just task IDs)
+        let old_format = format!(
+            r#"{{"id":"{}","title":"Test","status":"todo","depends_on":["{}","{}"],"created_at":"2025-01-01T00:00:00Z","updated_at":"2025-01-01T00:00:00Z"}}"#,
+            task_id, dep1_id, dep2_id
+        );
+
+        let task: Task = serde_json::from_str(&old_format).unwrap();
+        assert_eq!(task.depends_on.len(), 2);
+
+        // Both should be interpreted as blocking dependencies
+        assert_eq!(task.depends_on.blocking().count(), 2);
+    }
+
+    #[test]
+    fn new_format_serialization() {
+        let task1 = make_task(1);
+        let task2 = make_task(2);
+        let mut task3 = make_task(3);
+
+        task3.add_typed_dependency(Dependency::blocks(task1.id.clone()));
+        task3.add_typed_dependency(Dependency::provenance(task2.id.clone()));
+
+        let json = serde_json::to_string(&task3).unwrap();
+        let parsed: Task = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.depends_on.len(), 2);
+        assert_eq!(parsed.depends_on.blocking().count(), 1);
+        assert_eq!(parsed.depends_on.by_type(DependencyType::Provenance).count(), 1);
+    }
+
+    #[test]
+    fn dependency_type_label() {
+        assert_eq!(DependencyType::Blocks.label(), "blocks");
+        assert_eq!(DependencyType::Provenance.label(), "from");
+        assert_eq!(DependencyType::Related.label(), "link");
+        assert_eq!(DependencyType::Duplicates.label(), "dup");
     }
 
     #[test]

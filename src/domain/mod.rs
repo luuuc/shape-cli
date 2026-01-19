@@ -58,4 +58,7 @@ pub use anchor::{Anchor, AnchorFrontmatter, AnchorMeta, AnchorStatus};
 pub use graph::{DependencyGraph, GraphError};
 pub use id::{AnchorId, IdError, TaskId};
 pub use merge::{merge_tasks, MergeResult};
-pub use task::{current_timestamp, FieldVersions, Task, TaskMeta, TaskStatus};
+pub use task::{
+    current_timestamp, Dependencies, Dependency, DependencyType, FieldVersions, Task, TaskMeta,
+    TaskStatus,
+};

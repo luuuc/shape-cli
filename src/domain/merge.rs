@@ -91,9 +91,11 @@ pub fn merge_tasks(base: &Task, ours: &Task, theirs: &Task) -> MergeResult {
     merge_field!(completed_at, "completed_at", touch_completed_at);
 
     // Merge dependencies (set union - additions win)
-    let ours_deps: HashSet<_> = ours.depends_on.iter().cloned().collect();
-    let theirs_deps: HashSet<_> = theirs.depends_on.iter().cloned().collect();
-    let base_deps: HashSet<_> = base.depends_on.iter().cloned().collect();
+    use super::task::{Dependency, Dependencies};
+
+    let ours_deps: HashSet<Dependency> = ours.depends_on.iter().cloned().collect();
+    let theirs_deps: HashSet<Dependency> = theirs.depends_on.iter().cloned().collect();
+    let base_deps: HashSet<Dependency> = base.depends_on.iter().cloned().collect();
 
     let ours_added: HashSet<_> = ours_deps.difference(&base_deps).cloned().collect();
     let theirs_added: HashSet<_> = theirs_deps.difference(&base_deps).cloned().collect();
@@ -101,7 +103,7 @@ pub fn merge_tasks(base: &Task, ours: &Task, theirs: &Task) -> MergeResult {
     let theirs_removed: HashSet<_> = base_deps.difference(&theirs_deps).cloned().collect();
 
     // Start with base, apply additions from both, apply removals only if not re-added
-    let mut merged_deps = base_deps.clone();
+    let mut merged_deps: HashSet<Dependency> = base_deps.clone();
     for dep in ours_added.union(&theirs_added) {
         merged_deps.insert(dep.clone());
     }
@@ -109,7 +111,13 @@ pub fn merge_tasks(base: &Task, ours: &Task, theirs: &Task) -> MergeResult {
         // Only remove if both sides removed
         merged_deps.remove(dep);
     }
-    merged.depends_on = merged_deps;
+
+    // Convert HashSet back to Dependencies
+    let mut final_deps = Dependencies::new();
+    for dep in merged_deps {
+        final_deps.add(dep);
+    }
+    merged.depends_on = final_deps;
 
     if !ours_added.is_empty() || !ours_removed.is_empty() {
         ours_fields.push("depends_on".to_string());
@@ -286,8 +294,8 @@ mod tests {
         let result = merge_tasks(&base, &ours, &theirs);
 
         // Both dependencies should be present (union)
-        assert!(result.task.depends_on.contains(&dep1_id));
-        assert!(result.task.depends_on.contains(&dep2_id));
+        assert!(result.task.depends_on.contains_blocking(&dep1_id));
+        assert!(result.task.depends_on.contains_blocking(&dep2_id));
     }
 
     #[test]
