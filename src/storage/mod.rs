@@ -46,6 +46,6 @@ mod cache;
 
 pub use jsonl::TaskStore;
 pub use markdown::AnchorStore;
-pub use config::{Config, ConfigError};
+pub use config::{Config, ConfigError, CompactionConfig, CompactionStrategy};
 pub use project::{Project, ProjectError};
 pub use cache::{Cache, CacheError, CachedAnchor, CachedTask, SearchResult, SearchResultType};

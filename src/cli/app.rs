@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 use anyhow::Result;
 
 use super::output::{Output, OutputFormat};
-use super::{anchor, task, query, context, plugin_cmd, sync_cmd, agent_setup, cache_cmd, merge_driver};
+use super::{anchor, task, query, context, plugin_cmd, sync_cmd, agent_setup, cache_cmd, merge_driver, compact};
 use crate::storage::Project;
 
 #[derive(Parser)]
@@ -71,6 +71,29 @@ pub enum Commands {
         /// Days of completed tasks to include
         #[arg(long, default_value = "7")]
         days: u32,
+    },
+
+    /// Compact old completed tasks into summaries
+    Compact {
+        /// Days threshold for compaction (default: 14)
+        #[arg(long, default_value = "14")]
+        days: u32,
+
+        /// Filter by anchor ID
+        #[arg(long)]
+        anchor: Option<String>,
+
+        /// Preview without making changes
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Compaction strategy (basic, smart, llm)
+        #[arg(long)]
+        strategy: Option<String>,
+
+        /// Undo compaction for a specific task
+        #[arg(long)]
+        undo: Option<String>,
     },
 
     /// Configure AI agent integration
@@ -166,9 +189,17 @@ pub fn run() -> Result<()> {
             query::status(&output)?
         }
 
-        Commands::Context { compact, anchor, days } => {
-            output.verbose_ctx("context", &format!("Exporting context: compact={}, anchor={:?}, days={}", compact, anchor, days));
-            context::export(&output, compact, anchor.as_deref(), days)?
+        Commands::Context { compact: compact_mode, anchor, days } => {
+            output.verbose_ctx("context", &format!("Exporting context: compact={}, anchor={:?}, days={}", compact_mode, anchor, days));
+            context::export(&output, compact_mode, anchor.as_deref(), days)?
+        }
+
+        Commands::Compact { days, anchor, dry_run, strategy, undo } => {
+            if let Some(task_id) = undo {
+                compact::undo(&output, &task_id)?
+            } else {
+                compact::run(&output, days, anchor.as_deref(), dry_run, strategy.as_deref())?
+            }
         }
 
         Commands::AgentSetup { show, claude, cursor, windsurf } => {

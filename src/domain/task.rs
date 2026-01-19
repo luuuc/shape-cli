@@ -210,6 +210,18 @@ pub struct Task {
     /// Field is named `_v` in JSON for compactness
     #[serde(rename = "_v", default, skip_serializing_if = "FieldVersions::is_empty")]
     pub versions: FieldVersions,
+
+    /// Summary text for compacted tasks (only set on representative task)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+
+    /// IDs of tasks that were compacted into this one (only set on representative task)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compacted_tasks: Option<Vec<TaskId>>,
+
+    /// ID of the task this was compacted into (set on non-representative compacted tasks)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compacted_into: Option<TaskId>,
 }
 
 impl Task {
@@ -227,6 +239,9 @@ impl Task {
             description: None,
             meta: TaskMeta::new(),
             versions: FieldVersions::new(),
+            summary: None,
+            compacted_tasks: None,
+            compacted_into: None,
         }
     }
 
@@ -349,6 +364,46 @@ impl Task {
         self.title = title.into();
         self.updated_at = Utc::now();
         self.versions.touch_title();
+    }
+
+    /// Returns true if this task has been compacted into another task
+    pub fn is_compacted(&self) -> bool {
+        self.compacted_into.is_some()
+    }
+
+    /// Returns true if this task is a compaction representative (holds summary of other tasks)
+    pub fn is_compaction_representative(&self) -> bool {
+        self.compacted_tasks.is_some()
+    }
+
+    /// Returns the number of tasks compacted into this one (including itself)
+    pub fn compacted_count(&self) -> usize {
+        self.compacted_tasks.as_ref().map(|t| t.len()).unwrap_or(0)
+    }
+
+    /// Mark this task as compacted into another task
+    pub fn compact_into(&mut self, representative_id: TaskId) {
+        self.compacted_into = Some(representative_id);
+        self.updated_at = Utc::now();
+    }
+
+    /// Mark this task as a compaction representative with the given summary and task IDs
+    pub fn set_compaction(
+        &mut self,
+        summary: String,
+        compacted_task_ids: Vec<TaskId>,
+    ) {
+        self.summary = Some(summary);
+        self.compacted_tasks = Some(compacted_task_ids);
+        self.updated_at = Utc::now();
+    }
+
+    /// Clear compaction data (for undo)
+    pub fn clear_compaction(&mut self) {
+        self.summary = None;
+        self.compacted_tasks = None;
+        self.compacted_into = None;
+        self.updated_at = Utc::now();
     }
 }
 
@@ -508,5 +563,81 @@ mod tests {
         task.start();
 
         assert!(task.updated_at > created);
+    }
+
+    #[test]
+    fn new_task_is_not_compacted() {
+        let task = make_task(1);
+        assert!(!task.is_compacted());
+        assert!(!task.is_compaction_representative());
+        assert_eq!(task.compacted_count(), 0);
+    }
+
+    #[test]
+    fn task_compaction() {
+        let mut task1 = make_task(1);
+        let mut task2 = make_task(2);
+        let task3 = make_task(3);
+
+        // Mark task1 as the representative
+        task1.set_compaction(
+            "Auth foundation: schema, model, tests".to_string(),
+            vec![task1.id.clone(), task2.id.clone(), task3.id.clone()],
+        );
+
+        assert!(task1.is_compaction_representative());
+        assert_eq!(task1.compacted_count(), 3);
+        assert_eq!(
+            task1.summary,
+            Some("Auth foundation: schema, model, tests".to_string())
+        );
+
+        // Mark task2 as compacted into task1
+        task2.compact_into(task1.id.clone());
+        assert!(task2.is_compacted());
+        assert_eq!(task2.compacted_into, Some(task1.id.clone()));
+    }
+
+    #[test]
+    fn task_compaction_clear() {
+        let mut task = make_task(1);
+
+        task.set_compaction("Summary".to_string(), vec![task.id.clone()]);
+        assert!(task.is_compaction_representative());
+
+        task.clear_compaction();
+        assert!(!task.is_compaction_representative());
+        assert!(task.summary.is_none());
+        assert!(task.compacted_tasks.is_none());
+    }
+
+    #[test]
+    fn compaction_serde_roundtrip() {
+        let mut task = make_task(1);
+        let other_task = make_task(2);
+
+        task.set_compaction(
+            "Test summary".to_string(),
+            vec![task.id.clone(), other_task.id.clone()],
+        );
+
+        let json = serde_json::to_string(&task).unwrap();
+        let parsed: Task = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.summary, task.summary);
+        assert_eq!(parsed.compacted_tasks, task.compacted_tasks);
+    }
+
+    #[test]
+    fn compacted_into_serde_roundtrip() {
+        let task1 = make_task(1);
+        let mut task2 = make_task(2);
+
+        task2.compact_into(task1.id.clone());
+
+        let json = serde_json::to_string(&task2).unwrap();
+        let parsed: Task = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.compacted_into, Some(task1.id));
     }
 }

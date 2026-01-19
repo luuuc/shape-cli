@@ -59,13 +59,22 @@ pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days:
     let ready_ids = graph.ready_tasks(&statuses);
     let blocked_ids = graph.blocked_tasks(&statuses);
 
-    // Filter completed tasks by date
+    // Filter completed tasks by date (excluding compacted tasks)
     let cutoff = Utc::now() - Duration::days(days as i64);
     let recent_completed: Vec<_> = tasks
         .values()
         .filter(|t| {
-            t.status.is_complete() && t.completed_at.map(|c| c > cutoff).unwrap_or(false)
+            t.status.is_complete()
+                && !t.is_compacted()
+                && !t.is_compaction_representative()
+                && t.completed_at.map(|c| c > cutoff).unwrap_or(false)
         })
+        .collect();
+
+    // Collect compacted task representatives (summaries)
+    let compacted: Vec<_> = tasks
+        .values()
+        .filter(|t| t.is_compaction_representative())
         .collect();
 
     // In-progress tasks
@@ -75,8 +84,8 @@ pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days:
         .collect();
 
     output.verbose_ctx("context", &format!(
-        "Context summary: {} ready, {} blocked, {} in_progress, {} recently_completed",
-        ready_ids.len(), blocked_ids.len(), in_progress.len(), recent_completed.len()
+        "Context summary: {} ready, {} blocked, {} in_progress, {} recently_completed, {} compacted groups",
+        ready_ids.len(), blocked_ids.len(), in_progress.len(), recent_completed.len(), compacted.len()
     ));
 
     // Collect standalone tasks
@@ -87,10 +96,10 @@ pub fn export(output: &Output, compact: bool, anchor_filter: Option<&str>, days:
 
     if compact {
         // Compact format - minimal tokens
-        export_compact(output, &anchors, &tasks, &ready_ids, &blocked_ids, &in_progress, &recent_completed, &standalone_tasks)
+        export_compact(output, &anchors, &tasks, &ready_ids, &blocked_ids, &in_progress, &recent_completed, &compacted, &standalone_tasks)
     } else {
         // Full format
-        export_full(output, &anchors, &tasks, &ready_ids, &blocked_ids, &in_progress, &recent_completed, &statuses, &standalone_tasks)
+        export_full(output, &anchors, &tasks, &ready_ids, &blocked_ids, &in_progress, &recent_completed, &compacted, &statuses, &standalone_tasks)
     }
 }
 
@@ -103,6 +112,7 @@ fn export_compact(
     blocked_ids: &[TaskId],
     in_progress: &[&crate::domain::Task],
     recent_completed: &[&crate::domain::Task],
+    compacted: &[&crate::domain::Task],
     standalone_tasks: &[&crate::domain::Task],
 ) -> Result<()> {
     // Separate standalone tasks by status for the standalone_tasks section
@@ -156,6 +166,15 @@ fn export_compact(
             format!("{}: {}", t.id, t.title)
         }).collect::<Vec<_>>(),
 
+        "compacted": compacted.iter().map(|t| {
+            serde_json::json!({
+                "id": t.id.to_string(),
+                "summary": t.summary.clone().unwrap_or_default(),
+                "task_count": t.compacted_count(),
+                "completed_at": t.completed_at,
+            })
+        }).collect::<Vec<_>>(),
+
         "standalone_tasks": {
             "ready": standalone_ready,
             "in_progress": standalone_in_progress,
@@ -176,6 +195,7 @@ fn export_full(
     blocked_ids: &[TaskId],
     in_progress: &[&crate::domain::Task],
     recent_completed: &[&crate::domain::Task],
+    compacted: &[&crate::domain::Task],
     statuses: &HashMap<TaskId, TaskStatus>,
     standalone_tasks: &[&crate::domain::Task],
 ) -> Result<()> {
@@ -311,6 +331,17 @@ fn export_full(
                     "completed_at": t.completed_at,
                 })
             }).collect::<Vec<_>>(),
+
+            "compacted": compacted.iter().map(|t| {
+                serde_json::json!({
+                    "id": t.id.to_string(),
+                    "summary": t.summary.clone().unwrap_or_default(),
+                    "task_count": t.compacted_count(),
+                    "task_ids": t.compacted_tasks.clone().unwrap_or_default().iter().map(|id| id.to_string()).collect::<Vec<_>>(),
+                    "anchor": t.anchor_id().map(|a| a.to_string()),
+                    "completed_at": t.completed_at,
+                })
+            }).collect::<Vec<_>>(),
         },
 
         "standalone_tasks": {
@@ -326,6 +357,7 @@ fn export_full(
             "ready_count": ready_ids.len(),
             "blocked_count": blocked_ids.len(),
             "in_progress_count": in_progress.len(),
+            "compacted_groups": compacted.len(),
         },
     });
 

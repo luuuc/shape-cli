@@ -38,6 +38,53 @@ impl DefaultAnchorType {
     }
 }
 
+/// Compaction strategy for summarizing completed tasks
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CompactionStrategy {
+    /// Concatenate task titles
+    #[default]
+    Basic,
+    /// Group related tasks by common words
+    Smart,
+    /// Use LLM to generate summaries
+    Llm,
+}
+
+impl CompactionStrategy {
+    pub fn as_str(&self) -> &str {
+        match self {
+            CompactionStrategy::Basic => "basic",
+            CompactionStrategy::Smart => "smart",
+            CompactionStrategy::Llm => "llm",
+        }
+    }
+}
+
+/// Configuration for memory compaction
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CompactionConfig {
+    /// Days after which completed tasks can be compacted
+    pub auto_compact_days: u32,
+
+    /// Minimum tasks required to trigger compaction
+    pub min_tasks: usize,
+
+    /// Compaction strategy
+    pub strategy: CompactionStrategy,
+}
+
+impl Default for CompactionConfig {
+    fn default() -> Self {
+        Self {
+            auto_compact_days: 14,
+            min_tasks: 3,
+            strategy: CompactionStrategy::Smart,
+        }
+    }
+}
+
 /// Project-level configuration
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -50,6 +97,9 @@ pub struct ProjectConfig {
 
     /// Days to include completed tasks in context (default 7)
     pub context_days: u32,
+
+    /// Compaction settings
+    pub compaction: CompactionConfig,
 }
 
 impl ProjectConfig {
@@ -58,6 +108,7 @@ impl ProjectConfig {
             default_anchor_type: DefaultAnchorType::Minimal,
             plugins: vec![],
             context_days: 7,
+            compaction: CompactionConfig::default(),
         }
     }
 }
