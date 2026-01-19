@@ -1,7 +1,7 @@
 [package]
 name = "shape-cli"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 description = "A local-first task management CLI for software teams"
 license = "MIT"
 repository = "https://github.com/shape-cli/shape"

@@ -454,7 +454,7 @@ mod tests {
         let id1 = TaskId::new(&anchor, 1);
         let id2 = TaskId::new(&anchor, 2);
 
-        let mut task1 = Task::new(id1.clone(), "Task 1");
+        let task1 = Task::new(id1.clone(), "Task 1");
         let mut task2 = Task::new(id2.clone(), "Task 2");
         task2.add_dependency(id1.clone());
 
