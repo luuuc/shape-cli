@@ -59,6 +59,6 @@ pub use graph::{DependencyGraph, GraphError};
 pub use id::{BriefId, IdError, TaskId};
 pub use merge::{merge_tasks, MergeResult};
 pub use task::{
-    current_timestamp, Dependencies, Dependency, DependencyType, FieldVersions, Task, TaskMeta,
-    TaskStatus,
+    current_timestamp, BlockInfo, Dependencies, Dependency, DependencyType, FieldVersions,
+    HistoryEvent, HistoryEventType, Link, LinkType, Note, Task, TaskMeta, TaskStatus,
 };

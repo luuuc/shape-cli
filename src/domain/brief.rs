@@ -346,10 +346,7 @@ mod tests {
             "shipped".parse::<BriefStatus>().unwrap(),
             BriefStatus::Shipped
         );
-        assert_eq!(
-            "done".parse::<BriefStatus>().unwrap(),
-            BriefStatus::Shipped
-        );
+        assert_eq!("done".parse::<BriefStatus>().unwrap(), BriefStatus::Shipped);
         assert_eq!(
             "archived".parse::<BriefStatus>().unwrap(),
             BriefStatus::Archived

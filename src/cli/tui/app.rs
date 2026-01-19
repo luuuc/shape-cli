@@ -128,7 +128,9 @@ impl App {
                     // Sort by status priority, then by title
                     let priority_a = status_priority(ba.status);
                     let priority_b = status_priority(bb.status);
-                    priority_a.cmp(&priority_b).then_with(|| ba.title.cmp(&bb.title))
+                    priority_a
+                        .cmp(&priority_b)
+                        .then_with(|| ba.title.cmp(&bb.title))
                 }
                 _ => a.to_string().cmp(&b.to_string()),
             }
@@ -136,10 +138,13 @@ impl App {
 
         let brief_filter = brief_filter.and_then(|s| {
             // Try to find brief by ID or partial match
-            brief_list.iter().find(|id| {
-                let id_str = id.to_string();
-                id_str == s || id_str.contains(s)
-            }).cloned()
+            brief_list
+                .iter()
+                .find(|id| {
+                    let id_str = id.to_string();
+                    id_str == s || id_str.contains(s)
+                })
+                .cloned()
         });
 
         let mut app = Self {
@@ -206,9 +211,7 @@ impl App {
         super::ui::restore_terminal()?;
 
         // Run editor
-        let status = std::process::Command::new(&editor)
-            .arg(path)
-            .status();
+        let status = std::process::Command::new(&editor).arg(path).status();
 
         // Reinitialize terminal regardless of editor result
         *terminal = super::ui::init_terminal()?;
@@ -217,7 +220,8 @@ impl App {
         match status {
             Ok(exit_status) => {
                 if !exit_status.success() {
-                    self.status_message = Some(format!("Editor exited with code: {:?}", exit_status.code()));
+                    self.status_message =
+                        Some(format!("Editor exited with code: {:?}", exit_status.code()));
                 }
             }
             Err(e) => {
@@ -342,7 +346,10 @@ impl App {
 
             // Help
             KeyCode::Char('?') => {
-                self.status_message = Some("j/k:move h/l:panel s:start d:done n:new task N:new brief /:search q:quit".to_string());
+                self.status_message = Some(
+                    "j/k:move h/l:panel s:start d:done n:new task N:new brief /:search q:quit"
+                        .to_string(),
+                );
             }
 
             _ => {}
@@ -587,8 +594,11 @@ impl App {
                     let ready_a = ta.is_ready(&statuses);
                     let ready_b = tb.is_ready(&statuses);
                     // Ready tasks first
-                    ready_b.cmp(&ready_a)
-                        .then_with(|| task_status_priority(ta.status).cmp(&task_status_priority(tb.status)))
+                    ready_b
+                        .cmp(&ready_a)
+                        .then_with(|| {
+                            task_status_priority(ta.status).cmp(&task_status_priority(tb.status))
+                        })
                         .then_with(|| ta.title.cmp(&tb.title))
                 }
                 _ => a.to_string().cmp(&b.to_string()),
@@ -610,7 +620,8 @@ impl App {
 
         let query_lower = query.to_lowercase();
 
-        self.search_results = self.tasks
+        self.search_results = self
+            .tasks
             .iter()
             .filter(|(id, task)| {
                 let id_str = id.to_string().to_lowercase();
@@ -626,7 +637,10 @@ impl App {
 
     /// Get task statuses map
     fn get_task_statuses(&self) -> HashMap<TaskId, TaskStatus> {
-        self.tasks.iter().map(|(id, t)| (id.clone(), t.status)).collect()
+        self.tasks
+            .iter()
+            .map(|(id, t)| (id.clone(), t.status))
+            .collect()
     }
 
     /// Start the selected task
@@ -686,7 +700,8 @@ impl App {
         // Create task ID
         let task_id = if let Some(ref bid) = brief_id {
             // Get next sequence number for this brief
-            let max_seq = self.tasks
+            let max_seq = self
+                .tasks
                 .keys()
                 .filter(|id| id.brief_id().as_ref() == Some(bid))
                 .filter_map(|id| id.segments().first().copied())
@@ -731,7 +746,8 @@ impl App {
             }
             Focus::Tasks | Focus::Details => {
                 // Tasks are stored in JSONL, so we can't easily edit them in an editor
-                self.status_message = Some("Edit task: use 's' to start, 'd' to complete".to_string());
+                self.status_message =
+                    Some("Edit task: use 's' to start, 'd' to complete".to_string());
             }
         }
     }
@@ -753,7 +769,9 @@ impl App {
                 (Some(ba), Some(bb)) => {
                     let priority_a = status_priority(ba.status);
                     let priority_b = status_priority(bb.status);
-                    priority_a.cmp(&priority_b).then_with(|| ba.title.cmp(&bb.title))
+                    priority_a
+                        .cmp(&priority_b)
+                        .then_with(|| ba.title.cmp(&bb.title))
                 }
                 _ => a.to_string().cmp(&b.to_string()),
             }
@@ -913,7 +931,9 @@ mod tests {
 
     #[test]
     fn task_status_priority_orders_correctly() {
-        assert!(task_status_priority(TaskStatus::InProgress) < task_status_priority(TaskStatus::Todo));
+        assert!(
+            task_status_priority(TaskStatus::InProgress) < task_status_priority(TaskStatus::Todo)
+        );
         assert!(task_status_priority(TaskStatus::Todo) < task_status_priority(TaskStatus::Done));
     }
 

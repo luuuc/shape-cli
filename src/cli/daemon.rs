@@ -213,7 +213,9 @@ fn start_daemon(output: &Output, foreground: bool, quiet: bool) -> Result<()> {
                 "message": "Daemon is disabled in config",
             }));
         } else {
-            output.error("Daemon is disabled in config. Set daemon.enabled = true in .shape/config.toml");
+            output.error(
+                "Daemon is disabled in config. Set daemon.enabled = true in .shape/config.toml",
+            );
         }
         return Ok(());
     }
@@ -222,7 +224,10 @@ fn start_daemon(output: &Output, foreground: bool, quiet: bool) -> Result<()> {
         // Run in foreground
         let pid = std::process::id();
         write_pid(&shape_dir, pid)?;
-        log_message(&shape_dir, &format!("Daemon starting in foreground (PID: {})", pid))?;
+        log_message(
+            &shape_dir,
+            &format!("Daemon starting in foreground (PID: {})", pid),
+        )?;
 
         if !quiet {
             if output.is_json() {
@@ -515,7 +520,10 @@ fn run_daemon_loop(project: &Project, config: &DaemonConfig) -> Result<()> {
     let shape_dir = project.shape_dir();
     let project_root = project.root().to_path_buf();
 
-    log_message(&shape_dir, &format!("Watching directory: {}", shape_dir.display()))?;
+    log_message(
+        &shape_dir,
+        &format!("Watching directory: {}", shape_dir.display()),
+    )?;
 
     // Set up file watcher with debouncing
     let (tx, rx) = mpsc::channel();
@@ -568,10 +576,7 @@ fn run_daemon_loop(project: &Project, config: &DaemonConfig) -> Result<()> {
                                         log_message(&shape_dir, "Nothing to push")?;
                                     }
                                     Err(e) => {
-                                        log_message(
-                                            &shape_dir,
-                                            &format!("Push failed: {}", e),
-                                        )?;
+                                        log_message(&shape_dir, &format!("Push failed: {}", e))?;
                                     }
                                 }
                             }
@@ -729,10 +734,18 @@ fn generate_commit_message(status: &str, _config: &DaemonConfig) -> String {
     // Multiple types of changes
     let mut parts = Vec::new();
     if task_changes > 0 {
-        parts.push(format!("{} task{}", task_changes, if task_changes == 1 { "" } else { "s" }));
+        parts.push(format!(
+            "{} task{}",
+            task_changes,
+            if task_changes == 1 { "" } else { "s" }
+        ));
     }
     if brief_changes > 0 {
-        parts.push(format!("{} brief{}", brief_changes, if brief_changes == 1 { "" } else { "s" }));
+        parts.push(format!(
+            "{} brief{}",
+            brief_changes,
+            if brief_changes == 1 { "" } else { "s" }
+        ));
     }
     if config_changes > 0 {
         parts.push("config".to_string());
@@ -751,9 +764,7 @@ fn auto_push(project_root: &Path, config: &DaemonConfig) -> Result<bool> {
         .output();
 
     // If we can't determine, try to push anyway
-    let has_commits = log_output
-        .map(|o| !o.stdout.is_empty())
-        .unwrap_or(true);
+    let has_commits = log_output.map(|o| !o.stdout.is_empty()).unwrap_or(true);
 
     if !has_commits {
         return Ok(false);

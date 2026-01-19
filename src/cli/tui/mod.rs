@@ -66,9 +66,7 @@ pub fn run(output: &Output, brief_filter: Option<&str>, view: &str) -> Result<()
 
     // Run the main loop with panic safety
     // This ensures terminal is restored even if the app panics
-    let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        app.run(&mut terminal, event_handler)
-    }));
+    let result = panic::catch_unwind(AssertUnwindSafe(|| app.run(&mut terminal, event_handler)));
 
     // Always restore terminal, even on panic
     let restore_result = ui::restore_terminal();

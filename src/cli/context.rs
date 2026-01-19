@@ -10,12 +10,7 @@ use crate::domain::{BriefId, DependencyGraph, TaskId, TaskStatus};
 use crate::storage::Project;
 
 /// Export project context for AI consumption
-pub fn export(
-    output: &Output,
-    compact: bool,
-    brief_filter: Option<&str>,
-    days: u32,
-) -> Result<()> {
+pub fn export(output: &Output, compact: bool, brief_filter: Option<&str>, days: u32) -> Result<()> {
     let project = Project::open_current()?;
     output.verbose_ctx(
         "context",
@@ -159,7 +154,11 @@ fn export_compact(
         .iter()
         .filter(|t| blocked_ids.contains(&t.id))
         .map(|t| {
-            let deps: Vec<_> = t.depends_on.blocking_task_ids().map(|d| d.to_string()).collect();
+            let deps: Vec<_> = t
+                .depends_on
+                .blocking_task_ids()
+                .map(|d| d.to_string())
+                .collect();
             format!("{}: {} (blocked by {})", t.id, t.title, deps.join(", "))
         })
         .collect();

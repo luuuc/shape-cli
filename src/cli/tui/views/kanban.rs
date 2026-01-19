@@ -17,7 +17,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(10),    // Main content
+            Constraint::Min(10),   // Main content
             Constraint::Length(3), // Status bar
         ])
         .split(area);
@@ -33,7 +33,11 @@ pub fn draw(frame: &mut Frame, app: &App) {
         .split(main_chunks[0]);
 
     // Collect tasks by status
-    let statuses = app.tasks().iter().map(|(id, t)| (id.clone(), t.status)).collect();
+    let statuses = app
+        .tasks()
+        .iter()
+        .map(|(id, t)| (id.clone(), t.status))
+        .collect();
     let mut todo_tasks = Vec::new();
     let mut in_progress_tasks = Vec::new();
     let mut done_tasks = Vec::new();
@@ -83,19 +87,17 @@ fn draw_todo_column(
             } else {
                 Style::default().fg(Color::Green)
             };
-            ListItem::new(format!("{} {}", indicator, truncate_str(&task.title, 25)))
-                .style(style)
+            ListItem::new(format!("{} {}", indicator, truncate_str(&task.title, 25))).style(style)
         })
         .collect();
 
     let title = format!("Todo ({})", tasks.len());
-    let list = List::new(items)
-        .block(
-            Block::default()
-                .title(title)
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Green)),
-        );
+    let list = List::new(items).block(
+        Block::default()
+            .title(title)
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Green)),
+    );
 
     frame.render_widget(list, area);
 }
@@ -114,13 +116,12 @@ fn draw_in_progress_column(
         .collect();
 
     let title = format!("In Progress ({})", tasks.len());
-    let list = List::new(items)
-        .block(
-            Block::default()
-                .title(title)
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Yellow)),
-        );
+    let list = List::new(items).block(
+        Block::default()
+            .title(title)
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Yellow)),
+    );
 
     frame.render_widget(list, area);
 }
@@ -139,13 +140,12 @@ fn draw_done_column(
         .collect();
 
     let title = format!("Done ({})", tasks.len());
-    let list = List::new(items)
-        .block(
-            Block::default()
-                .title(title)
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::DarkGray)),
-        );
+    let list = List::new(items).block(
+        Block::default()
+            .title(title)
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::DarkGray)),
+    );
 
     frame.render_widget(list, area);
 }
@@ -153,14 +153,15 @@ fn draw_done_column(
 fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     let (content, style) = match app.input_mode() {
         InputMode::Normal => {
-            let msg = app.status_message().unwrap_or(
-                "[1-3]views [c]ompleted [r]efresh [q]uit"
-            );
+            let msg = app
+                .status_message()
+                .unwrap_or("[1-3]views [c]ompleted [r]efresh [q]uit");
             (msg.to_string(), Style::default())
         }
-        _ => {
-            ("Press Esc to cancel".to_string(), Style::default().fg(Color::Yellow))
-        }
+        _ => (
+            "Press Esc to cancel".to_string(),
+            Style::default().fg(Color::Yellow),
+        ),
     };
 
     let status_text = format!("Shape [2:Kanban] {}", content);

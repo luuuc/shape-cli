@@ -44,14 +44,7 @@ fn setup_context_test_project() -> TempDir {
 
     let output2 = shape_cmd()
         .current_dir(dir.path())
-        .args([
-            "task",
-            "add",
-            &brief_id,
-            "Blocked Task",
-            "--format",
-            "json",
-        ])
+        .args(["task", "add", &brief_id, "Blocked Task", "--format", "json"])
         .assert()
         .success();
     let task2_id =

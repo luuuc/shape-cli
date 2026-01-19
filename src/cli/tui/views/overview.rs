@@ -17,7 +17,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(10),    // Main content
+            Constraint::Min(10),   // Main content
             Constraint::Length(3), // Status bar
         ])
         .split(area);
@@ -82,7 +82,11 @@ fn draw_briefs_panel(frame: &mut Frame, app: &App, area: Rect) {
         )
         .highlight_style(
             Style::default()
-                .bg(if focused { Color::DarkGray } else { Color::Black })
+                .bg(if focused {
+                    Color::DarkGray
+                } else {
+                    Color::Black
+                })
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("> ");
@@ -96,7 +100,11 @@ fn draw_briefs_panel(frame: &mut Frame, app: &App, area: Rect) {
 /// Draw the tasks panel
 fn draw_tasks_panel(frame: &mut Frame, app: &App, area: Rect) {
     let focused = app.focus() == Focus::Tasks;
-    let statuses = app.tasks().iter().map(|(id, t)| (id.clone(), t.status)).collect();
+    let statuses = app
+        .tasks()
+        .iter()
+        .map(|(id, t)| (id.clone(), t.status))
+        .collect();
 
     // Group tasks by status
     let mut ready_tasks = Vec::new();
@@ -127,8 +135,13 @@ fn draw_tasks_panel(frame: &mut Frame, app: &App, area: Rect) {
 
     // Ready tasks
     if !ready_tasks.is_empty() {
-        items.push(ListItem::new(format!("Ready ({})", ready_tasks.len()))
-            .style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)));
+        items.push(
+            ListItem::new(format!("Ready ({})", ready_tasks.len())).style(
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        );
         for task_id in &ready_tasks {
             if let Some(pos) = app.task_list().iter().position(|id| id == *task_id) {
                 if pos == app.task_index() {
@@ -137,7 +150,11 @@ fn draw_tasks_panel(frame: &mut Frame, app: &App, area: Rect) {
             }
             if let Some(task) = app.tasks().get(task_id) {
                 let indicator = "[ ]";
-                items.push(ListItem::new(format!("  {} {}", indicator, truncate_str(&task.title, 30))));
+                items.push(ListItem::new(format!(
+                    "  {} {}",
+                    indicator,
+                    truncate_str(&task.title, 30)
+                )));
             }
         }
         flat_index += ready_tasks.len() + 1;
@@ -145,8 +162,13 @@ fn draw_tasks_panel(frame: &mut Frame, app: &App, area: Rect) {
 
     // In Progress tasks
     if !in_progress_tasks.is_empty() {
-        items.push(ListItem::new(format!("In Progress ({})", in_progress_tasks.len()))
-            .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+        items.push(
+            ListItem::new(format!("In Progress ({})", in_progress_tasks.len())).style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        );
         for task_id in &in_progress_tasks {
             if let Some(pos) = app.task_list().iter().position(|id| id == *task_id) {
                 if pos == app.task_index() {
@@ -155,7 +177,11 @@ fn draw_tasks_panel(frame: &mut Frame, app: &App, area: Rect) {
             }
             if let Some(task) = app.tasks().get(task_id) {
                 let indicator = "[~]";
-                items.push(ListItem::new(format!("  {} {}", indicator, truncate_str(&task.title, 30))));
+                items.push(ListItem::new(format!(
+                    "  {} {}",
+                    indicator,
+                    truncate_str(&task.title, 30)
+                )));
             }
         }
         flat_index += in_progress_tasks.len() + 1;
@@ -163,8 +189,10 @@ fn draw_tasks_panel(frame: &mut Frame, app: &App, area: Rect) {
 
     // Blocked tasks
     if !blocked_tasks.is_empty() {
-        items.push(ListItem::new(format!("Blocked ({})", blocked_tasks.len()))
-            .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)));
+        items.push(
+            ListItem::new(format!("Blocked ({})", blocked_tasks.len()))
+                .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+        );
         for task_id in &blocked_tasks {
             if let Some(pos) = app.task_list().iter().position(|id| id == *task_id) {
                 if pos == app.task_index() {
@@ -173,7 +201,11 @@ fn draw_tasks_panel(frame: &mut Frame, app: &App, area: Rect) {
             }
             if let Some(task) = app.tasks().get(task_id) {
                 let indicator = "[B]";
-                items.push(ListItem::new(format!("  {} {}", indicator, truncate_str(&task.title, 30))));
+                items.push(ListItem::new(format!(
+                    "  {} {}",
+                    indicator,
+                    truncate_str(&task.title, 30)
+                )));
             }
         }
         flat_index += blocked_tasks.len() + 1;
@@ -181,8 +213,13 @@ fn draw_tasks_panel(frame: &mut Frame, app: &App, area: Rect) {
 
     // Done tasks (if showing completed)
     if app.show_completed() && !done_tasks.is_empty() {
-        items.push(ListItem::new(format!("Done ({})", done_tasks.len()))
-            .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)));
+        items.push(
+            ListItem::new(format!("Done ({})", done_tasks.len())).style(
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        );
         for task_id in &done_tasks {
             if let Some(pos) = app.task_list().iter().position(|id| id == *task_id) {
                 if pos == app.task_index() {
@@ -191,8 +228,10 @@ fn draw_tasks_panel(frame: &mut Frame, app: &App, area: Rect) {
             }
             if let Some(task) = app.tasks().get(task_id) {
                 let indicator = "[x]";
-                items.push(ListItem::new(format!("  {} {}", indicator, truncate_str(&task.title, 30)))
-                    .style(Style::default().fg(Color::DarkGray)));
+                items.push(
+                    ListItem::new(format!("  {} {}", indicator, truncate_str(&task.title, 30)))
+                        .style(Style::default().fg(Color::DarkGray)),
+                );
             }
         }
     }
@@ -212,7 +251,11 @@ fn draw_tasks_panel(frame: &mut Frame, app: &App, area: Rect) {
         )
         .highlight_style(
             Style::default()
-                .bg(if focused { Color::DarkGray } else { Color::Black })
+                .bg(if focused {
+                    Color::DarkGray
+                } else {
+                    Color::Black
+                })
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("> ");
@@ -226,7 +269,11 @@ fn draw_tasks_panel(frame: &mut Frame, app: &App, area: Rect) {
 /// Draw the details panel
 fn draw_details_panel(frame: &mut Frame, app: &App, area: Rect) {
     let focused = app.focus() == Focus::Details;
-    let statuses = app.tasks().iter().map(|(id, t)| (id.clone(), t.status)).collect();
+    let statuses = app
+        .tasks()
+        .iter()
+        .map(|(id, t)| (id.clone(), t.status))
+        .collect();
 
     let content = if let Some(task) = app.selected_task() {
         let status_str = match task.status {
@@ -252,9 +299,17 @@ fn draw_details_panel(frame: &mut Frame, app: &App, area: Rect) {
             task.depends_on
                 .iter()
                 .map(|d| {
-                    let status = app.tasks().get(&d.task).map(|t| {
-                        if t.status.is_complete() { " (done)" } else { "" }
-                    }).unwrap_or("");
+                    let status = app
+                        .tasks()
+                        .get(&d.task)
+                        .map(|t| {
+                            if t.status.is_complete() {
+                                " (done)"
+                            } else {
+                                ""
+                            }
+                        })
+                        .unwrap_or("");
                     format!("{}{}", d.task, status)
                 })
                 .collect::<Vec<_>>()
@@ -294,11 +349,7 @@ fn draw_details_panel(frame: &mut Frame, app: &App, area: Rect) {
 
         if !brief.body.is_empty() {
             // Show first few lines of body
-            let body_preview: String = brief.body
-                .lines()
-                .take(10)
-                .collect::<Vec<_>>()
-                .join("\n");
+            let body_preview: String = brief.body.lines().take(10).collect::<Vec<_>>().join("\n");
             lines.push(body_preview);
         }
 
@@ -334,9 +385,10 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             );
             (msg.to_string(), Style::default())
         }
-        InputMode::Search(query) => {
-            (format!("Search: {}_", query), Style::default().fg(Color::Yellow))
-        }
+        InputMode::Search(query) => (
+            format!("Search: {}_", query),
+            Style::default().fg(Color::Yellow),
+        ),
         InputMode::Confirm(action) => {
             let msg = match action {
                 crate::cli::tui::app::ConfirmAction::CompleteTask(id) => {
@@ -345,12 +397,14 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
             };
             (msg, Style::default().fg(Color::Yellow))
         }
-        InputMode::NewTask(title) => {
-            (format!("New task: {}_", title), Style::default().fg(Color::Green))
-        }
-        InputMode::NewBrief(title) => {
-            (format!("New brief: {}_", title), Style::default().fg(Color::Green))
-        }
+        InputMode::NewTask(title) => (
+            format!("New task: {}_", title),
+            Style::default().fg(Color::Green),
+        ),
+        InputMode::NewBrief(title) => (
+            format!("New brief: {}_", title),
+            Style::default().fg(Color::Green),
+        ),
     };
 
     // View mode indicator

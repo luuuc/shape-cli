@@ -19,7 +19,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(10),    // Main content
+            Constraint::Min(10),   // Main content
             Constraint::Length(3), // Status bar
         ])
         .split(area);
@@ -48,10 +48,8 @@ fn draw_graph_panel(frame: &mut Frame, app: &App, area: Rect) {
 
 fn build_dependency_graph(app: &App) -> String {
     let tasks = app.tasks();
-    let statuses: HashMap<TaskId, TaskStatus> = tasks
-        .iter()
-        .map(|(id, t)| (id.clone(), t.status))
-        .collect();
+    let statuses: HashMap<TaskId, TaskStatus> =
+        tasks.iter().map(|(id, t)| (id.clone(), t.status)).collect();
 
     // Find root tasks (tasks with no dependencies or whose dependencies are all from other briefs)
     let mut roots: Vec<&TaskId> = Vec::new();
@@ -68,9 +66,10 @@ fn build_dependency_graph(app: &App) -> String {
         // A task is a root if:
         // 1. It has no blocking dependencies, OR
         // 2. All its blocking dependencies are from other briefs
-        let is_root = task.depends_on.blocking().all(|dep| {
-            !tasks.contains_key(&dep.task)
-        });
+        let is_root = task
+            .depends_on
+            .blocking()
+            .all(|dep| !tasks.contains_key(&dep.task));
 
         if is_root && !task.status.is_complete() {
             roots.push(task_id);
@@ -129,7 +128,12 @@ fn render_task_tree(
 ) {
     if visited.contains(task_id) {
         // Cycle detection - show reference
-        lines.push(format!("{}{}-> (see {})", prefix, if is_last { "└" } else { "├" }, task_id));
+        lines.push(format!(
+            "{}{}-> (see {})",
+            prefix,
+            if is_last { "└" } else { "├" },
+            task_id
+        ));
         return;
     }
     visited.insert(task_id.clone());
@@ -167,15 +171,20 @@ fn render_task_tree(
     };
 
     let connector = if is_last { "└── " } else { "├── " };
-    let line = format!("{}{}{} {} ({})", prefix, connector, indicator, truncate_str(&task.title, 30), task_id);
+    let line = format!(
+        "{}{}{} {} ({})",
+        prefix,
+        connector,
+        indicator,
+        truncate_str(&task.title, 30),
+        task_id
+    );
     lines.push(line);
 
     // Find tasks that depend on this task (children in the tree)
     let mut children: Vec<&TaskId> = tasks
         .iter()
-        .filter(|(_, t)| {
-            t.depends_on.blocking().any(|dep| &dep.task == task_id)
-        })
+        .filter(|(_, t)| t.depends_on.blocking().any(|dep| &dep.task == task_id))
         .map(|(id, _)| id)
         .collect();
     children.sort_by_key(|a| a.to_string());
@@ -184,21 +193,30 @@ fn render_task_tree(
 
     for (i, child_id) in children.iter().enumerate() {
         let is_child_last = i == children.len() - 1;
-        render_task_tree(lines, child_id, tasks, statuses, visited, &child_prefix, is_child_last);
+        render_task_tree(
+            lines,
+            child_id,
+            tasks,
+            statuses,
+            visited,
+            &child_prefix,
+            is_child_last,
+        );
     }
 }
 
 fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     let (content, style) = match app.input_mode() {
         InputMode::Normal => {
-            let msg = app.status_message().unwrap_or(
-                "[1-3]views [r]efresh [q]uit"
-            );
+            let msg = app
+                .status_message()
+                .unwrap_or("[1-3]views [r]efresh [q]uit");
             (msg.to_string(), Style::default())
         }
-        _ => {
-            ("Press Esc to cancel".to_string(), Style::default().fg(Color::Yellow))
-        }
+        _ => (
+            "Press Esc to cancel".to_string(),
+            Style::default().fg(Color::Yellow),
+        ),
     };
 
     let status_text = format!("Shape [3:Graph] {}", content);

@@ -91,7 +91,7 @@ pub fn merge_tasks(base: &Task, ours: &Task, theirs: &Task) -> MergeResult {
     merge_field!(completed_at, "completed_at", touch_completed_at);
 
     // Merge dependencies (set union - additions win)
-    use super::task::{Dependency, Dependencies};
+    use super::task::{Dependencies, Dependency};
 
     let ours_deps: HashSet<Dependency> = ours.depends_on.iter().cloned().collect();
     let theirs_deps: HashSet<Dependency> = theirs.depends_on.iter().cloned().collect();

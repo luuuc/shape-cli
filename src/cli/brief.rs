@@ -224,10 +224,7 @@ fn set_status(output: &Output, id_str: &str, status_str: &str) -> Result<()> {
             "status": brief.status,
         }));
     } else {
-        output.success(&format!(
-            "Updated {} status to {}",
-            brief.id, brief.status
-        ));
+        output.success(&format!("Updated {} status to {}", brief.id, brief.status));
     }
 
     Ok(())
