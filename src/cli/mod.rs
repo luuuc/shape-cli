@@ -43,6 +43,7 @@ mod plugin_cmd;
 mod query;
 mod sync_cmd;
 mod task;
+mod tui;
 
 pub use app::{run, Cli, Commands};
 pub use output::{Output, OutputFormat};

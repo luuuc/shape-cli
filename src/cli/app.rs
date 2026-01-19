@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 use super::output::{Output, OutputFormat};
 use super::{
     agent_setup, anchor, cache_cmd, compact, context, daemon, merge_driver, plugin_cmd, query,
-    sync_cmd, task,
+    sync_cmd, task, tui,
 };
 use crate::storage::Project;
 
@@ -155,6 +155,17 @@ pub enum Commands {
     /// Advanced commands (plugins, sync)
     #[command(subcommand)]
     Advanced(AdvancedCommands),
+
+    /// Launch interactive TUI viewer
+    Tui {
+        /// Start focused on a specific anchor
+        #[arg(short, long)]
+        anchor: Option<String>,
+
+        /// Start with a specific view (overview, kanban, graph)
+        #[arg(short, long, default_value = "overview")]
+        view: String,
+    },
 }
 
 /// Advanced commands for plugins and external sync
@@ -275,6 +286,11 @@ pub fn run() -> Result<()> {
             AdvancedCommands::Plugin(cmd) => plugin_cmd::run(cmd, &output)?,
             AdvancedCommands::Sync(cmd) => sync_cmd::run(cmd, &output)?,
         },
+
+        Commands::Tui { anchor, view } => {
+            output.verbose_ctx("tui", &format!("Launching TUI, anchor={:?}, view={}", anchor, view));
+            tui::run(&output, anchor.as_deref(), &view)?
+        }
     }
 
     output.verbose("Command completed successfully");
