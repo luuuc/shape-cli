@@ -1,0 +1,112 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'json'
+require 'time'
+
+SYNC_FILE = 'shape-sync.json'
+
+def print_manifest
+  manifest = {
+    name: 'shape-sync-jsonfile-ruby',
+    version: '1.0.0',
+    description: 'Sync briefs to local JSON file (Ruby)',
+    type: 'sync',
+    operations: %w[push pull status test]
+  }
+  puts JSON.generate(manifest)
+end
+
+def handle_test
+  { success: true }
+end
+
+def handle_push(params)
+  briefs = params['briefs'] || []
+  tasks = params['tasks'] || []
+
+  data = {
+    briefs: briefs,
+    tasks: tasks,
+    synced_at: Time.now.utc.iso8601
+  }
+  File.write(SYNC_FILE, JSON.pretty_generate(data))
+
+  {
+    success: true,
+    data: {
+      pushed: briefs.length,
+      pulled: 0,
+      conflicts: 0,
+      errors: [],
+      mappings: []
+    }
+  }
+end
+
+def handle_pull
+  unless File.exist?(SYNC_FILE)
+    return {
+      success: true,
+      data: {
+        briefs: [],
+        tasks: [],
+        mappings: [],
+        pushed: 0,
+        pulled: 0,
+        conflicts: 0,
+        errors: []
+      }
+    }
+  end
+
+  content = JSON.parse(File.read(SYNC_FILE))
+  briefs = content['briefs'] || []
+  tasks = content['tasks'] || []
+
+  {
+    success: true,
+    data: {
+      briefs: briefs,
+      tasks: tasks,
+      mappings: [],
+      pushed: 0,
+      pulled: briefs.length,
+      conflicts: 0,
+      errors: []
+    }
+  }
+end
+
+def handle_status
+  {
+    success: true,
+    data: {
+      mapped_briefs: 0,
+      mapped_tasks: 0
+    }
+  }
+end
+
+def handle_request(request)
+  operation = request['operation']
+  params = request['params'] || {}
+
+  case operation
+  when 'test'   then handle_test
+  when 'push'   then handle_push(params)
+  when 'pull'   then handle_pull
+  when 'status' then handle_status
+  else
+    { success: false, error: "Unknown operation: #{operation}" }
+  end
+end
+
+# Main
+if ARGV.include?('--manifest')
+  print_manifest
+else
+  request = JSON.parse($stdin.gets)
+  response = handle_request(request)
+  puts JSON.generate(response)
+end
