@@ -1,0 +1,15 @@
+{
+  "briefs": [
+    {
+      "id": "b-123",
+      "title": "Test Brief"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t-456",
+      "title": "Test Task"
+    }
+  ],
+  "synced_at": "2026-01-19T20:45:04Z"
+}
