@@ -1,0 +1,144 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'json'
+require 'yaml'
+require 'fileutils'
+require 'time'
+
+OUTPUT_DIR = ENV['SHAPE_SYNC_MARKDOWN_DIR'] || './pitches'
+
+def print_manifest
+  manifest = {
+    name: 'shape-sync-markdowndir-ruby',
+    version: '1.0.0',
+    description: 'Sync briefs to markdown directory (Ruby)',
+    type: 'sync',
+    operations: %w[push pull status test]
+  }
+  puts JSON.generate(manifest)
+end
+
+def slugify(title)
+  title.downcase.gsub(/[^a-z0-9]+/, '-').gsub(/^-|-$/, '')
+end
+
+def generate_markdown(brief)
+  frontmatter = {
+    'id' => brief['id'],
+    'title' => brief['title'],
+    'status' => brief['status'],
+    'appetite' => brief['appetite'],
+    'synced_at' => Time.now.utc.iso8601
+  }.compact
+
+  yaml_content = frontmatter.to_yaml.sub(/\A---\n/, '')
+  "---\n#{yaml_content}---\n\n#{brief['body']}"
+end
+
+def handle_test
+  { success: true }
+end
+
+def handle_push(params)
+  briefs = params['briefs'] || []
+
+  FileUtils.mkdir_p(OUTPUT_DIR)
+
+  mappings = briefs.map do |brief|
+    filename = "#{brief['id']}-#{slugify(brief['title'])}.md"
+    filepath = File.join(OUTPUT_DIR, filename)
+    File.write(filepath, generate_markdown(brief))
+
+    { local_id: brief['id'], remote_id: filename, entity_type: 'brief' }
+  end
+
+  {
+    success: true,
+    data: {
+      pushed: briefs.length,
+      pulled: 0,
+      conflicts: 0,
+      errors: [],
+      mappings: mappings
+    }
+  }
+end
+
+def handle_pull
+  unless Dir.exist?(OUTPUT_DIR)
+    return {
+      success: true,
+      data: {
+        briefs: [],
+        tasks: [],
+        mappings: [],
+        pushed: 0,
+        pulled: 0,
+        conflicts: 0,
+        errors: []
+      }
+    }
+  end
+
+  briefs = Dir.glob(File.join(OUTPUT_DIR, '*.md')).filter_map do |filepath|
+    content = File.read(filepath)
+    if content =~ /\A---\n(.+?)\n---\n\n?(.*)/m
+      frontmatter = YAML.safe_load(Regexp.last_match(1))
+      frontmatter['body'] = Regexp.last_match(2)
+      frontmatter
+    end
+  end
+
+  {
+    success: true,
+    data: {
+      briefs: briefs,
+      tasks: [],
+      mappings: [],
+      pushed: 0,
+      pulled: briefs.length,
+      conflicts: 0,
+      errors: []
+    }
+  }
+end
+
+def handle_status
+  count = if Dir.exist?(OUTPUT_DIR)
+            Dir.glob(File.join(OUTPUT_DIR, '*.md')).length
+          else
+            0
+          end
+
+  {
+    success: true,
+    data: {
+      mapped_briefs: count,
+      mapped_tasks: 0
+    }
+  }
+end
+
+def handle_request(request)
+  operation = request['operation']
+  params = request['params'] || {}
+
+  case operation
+  when 'test'   then handle_test
+  when 'push'   then handle_push(params)
+  when 'pull'   then handle_pull
+  when 'status' then handle_status
+  else
+    { success: false, error: "Unknown operation: #{operation}" }
+  end
+end
+
+# Main
+if ARGV.include?('--manifest')
+  print_manifest
+else
+  request = JSON.parse($stdin.gets)
+  response = handle_request(request)
+  puts JSON.generate(response)
+end
