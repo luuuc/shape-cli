@@ -1,0 +1,22 @@
+{
+  "name": "shape-sync-markdowndir-nodejs",
+  "version": "1.0.0",
+  "description": "Sync briefs to markdown directory (Node.js)",
+  "main": "shape-sync-markdowndir-nodejs",
+  "bin": {
+    "shape-sync-markdowndir-nodejs": "./shape-sync-markdowndir-nodejs"
+  },
+  "scripts": {
+    "test": "node --check ./shape-sync-markdowndir-nodejs"
+  },
+  "keywords": [
+    "shape",
+    "sync",
+    "plugin",
+    "markdown"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

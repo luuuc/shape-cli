@@ -1,0 +1,170 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const path = require('path');
+const readline = require('readline');
+
+const OUTPUT_DIR = process.env.SHAPE_SYNC_MARKDOWN_DIR || './pitches';
+
+const manifest = {
+  name: 'shape-sync-markdowndir-nodejs',
+  version: '1.0.0',
+  description: 'Sync briefs to markdown directory (Node.js)',
+  type: 'sync',
+  operations: ['push', 'pull', 'status', 'test']
+};
+
+function slugify(title) {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function generateMarkdown(brief) {
+  const lines = [
+    '---',
+    'id: ' + brief.id,
+    'title: "' + brief.title + '"',
+    'status: ' + brief.status
+  ];
+  if (brief.appetite) {
+    lines.push('appetite: ' + brief.appetite);
+  }
+  lines.push('synced_at: ' + new Date().toISOString());
+  lines.push('---');
+  lines.push('');
+  lines.push(brief.body || '');
+
+  return lines.join('\n');
+}
+
+function parseFrontmatter(content) {
+  const match = content.match(/^---\n([\s\S]+?)\n---\n\n?([\s\S]*)$/);
+  if (!match) return null;
+
+  const frontmatter = {};
+  match[1].split('\n').forEach(function(line) {
+    const colonIndex = line.indexOf(': ');
+    if (colonIndex === -1) return;
+
+    const key = line.substring(0, colonIndex);
+    let value = line.substring(colonIndex + 2);
+
+    // Remove quotes from title
+    if (value.startsWith('"') && value.endsWith('"')) {
+      value = value.slice(1, -1);
+    }
+    frontmatter[key] = value;
+  });
+  frontmatter.body = match[2];
+  return frontmatter;
+}
+
+function handleTest() {
+  return { success: true };
+}
+
+function handlePush(params) {
+  const briefs = params.briefs || [];
+
+  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+
+  const mappings = briefs.map(function(brief) {
+    const filename = brief.id + '-' + slugify(brief.title) + '.md';
+    const filepath = path.join(OUTPUT_DIR, filename);
+    fs.writeFileSync(filepath, generateMarkdown(brief));
+
+    return { local_id: brief.id, remote_id: filename, entity_type: 'brief' };
+  });
+
+  return {
+    success: true,
+    data: {
+      pushed: briefs.length,
+      pulled: 0,
+      conflicts: 0,
+      errors: [],
+      mappings: mappings
+    }
+  };
+}
+
+function handlePull() {
+  if (!fs.existsSync(OUTPUT_DIR)) {
+    return {
+      success: true,
+      data: {
+        briefs: [],
+        tasks: [],
+        mappings: [],
+        pushed: 0,
+        pulled: 0,
+        conflicts: 0,
+        errors: []
+      }
+    };
+  }
+
+  const files = fs.readdirSync(OUTPUT_DIR).filter(function(f) {
+    return f.endsWith('.md');
+  });
+
+  const briefs = files.map(function(filename) {
+    const content = fs.readFileSync(path.join(OUTPUT_DIR, filename), 'utf8');
+    return parseFrontmatter(content);
+  }).filter(Boolean);
+
+  return {
+    success: true,
+    data: {
+      briefs: briefs,
+      tasks: [],
+      mappings: [],
+      pushed: 0,
+      pulled: briefs.length,
+      conflicts: 0,
+      errors: []
+    }
+  };
+}
+
+function handleStatus() {
+  let count = 0;
+  if (fs.existsSync(OUTPUT_DIR)) {
+    count = fs.readdirSync(OUTPUT_DIR).filter(function(f) {
+      return f.endsWith('.md');
+    }).length;
+  }
+
+  return {
+    success: true,
+    data: {
+      mapped_briefs: count,
+      mapped_tasks: 0
+    }
+  };
+}
+
+function handleRequest(request) {
+  const operation = request.operation;
+  const params = request.params || {};
+
+  switch (operation) {
+    case 'test':   return handleTest();
+    case 'push':   return handlePush(params);
+    case 'pull':   return handlePull();
+    case 'status': return handleStatus();
+    default:       return { success: false, error: 'Unknown operation: ' + operation };
+  }
+}
+
+// Main
+if (process.argv.includes('--manifest')) {
+  console.log(JSON.stringify(manifest));
+} else {
+  const rl = readline.createInterface({ input: process.stdin });
+  rl.on('line', function(line) {
+    const request = JSON.parse(line);
+    const response = handleRequest(request);
+    console.log(JSON.stringify(response));
+    rl.close();
+  });
+}
