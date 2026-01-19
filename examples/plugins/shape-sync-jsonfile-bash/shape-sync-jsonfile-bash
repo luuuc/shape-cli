@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SYNC_FILE="shape-sync.json"
+
+print_manifest() {
+  cat <<'EOF'
+{"name":"shape-sync-jsonfile-bash","version":"1.0.0","description":"Sync briefs to local JSON file (Bash)","type":"sync","operations":["push","pull","status","test"]}
+EOF
+}
+
+handle_test() {
+  echo '{"success":true}'
+}
+
+handle_push() {
+  local params="$1"
+  local briefs tasks
+  briefs=$(echo "$params" | jq '.briefs')
+  tasks=$(echo "$params" | jq '.tasks')
+
+  jq -n \
+    --argjson briefs "$briefs" \
+    --argjson tasks "$tasks" \
+    --arg synced_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{briefs: $briefs, tasks: $tasks, synced_at: $synced_at}' > "$SYNC_FILE"
+
+  local count
+  count=$(echo "$briefs" | jq 'length')
+  echo "{\"success\":true,\"data\":{\"pushed\":$count,\"pulled\":0,\"conflicts\":0,\"errors\":[],\"mappings\":[]}}"
+}
+
+handle_pull() {
+  if [[ ! -f "$SYNC_FILE" ]]; then
+    echo '{"success":true,"data":{"briefs":[],"tasks":[],"mappings":[],"pushed":0,"pulled":0,"conflicts":0,"errors":[]}}'
+    return
+  fi
+
+  local briefs tasks
+  briefs=$(jq '.briefs' "$SYNC_FILE")
+  tasks=$(jq '.tasks' "$SYNC_FILE")
+
+  local count
+  count=$(echo "$briefs" | jq 'length')
+
+  jq -n \
+    --argjson briefs "$briefs" \
+    --argjson tasks "$tasks" \
+    --argjson count "$count" \
+    '{"success":true,"data":{"briefs":$briefs,"tasks":$tasks,"mappings":[],"pushed":0,"pulled":$count,"conflicts":0,"errors":[]}}'
+}
+
+handle_status() {
+  echo '{"success":true,"data":{"mapped_briefs":0,"mapped_tasks":0}}'
+}
+
+# Main
+if [[ "${1:-}" == "--manifest" ]]; then
+  print_manifest
+  exit 0
+fi
+
+# Read request from stdin
+read -r request
+operation=$(echo "$request" | jq -r '.operation')
+params=$(echo "$request" | jq '.params')
+
+case "$operation" in
+  test)   handle_test ;;
+  push)   handle_push "$params" ;;
+  pull)   handle_pull ;;
+  status) handle_status ;;
+  *)      echo "{\"success\":false,\"error\":\"Unknown operation: $operation\"}" ;;
+esac
