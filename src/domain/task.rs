@@ -100,7 +100,11 @@ impl Dependencies {
 
     /// Adds a dependency
     pub fn add(&mut self, dep: Dependency) -> bool {
-        if !self.0.iter().any(|d| d.task == dep.task && d.dep_type == dep.dep_type) {
+        if !self
+            .0
+            .iter()
+            .any(|d| d.task == dep.task && d.dep_type == dep.dep_type)
+        {
             self.0.push(dep);
             true
         } else {
@@ -141,7 +145,9 @@ impl Dependencies {
 
     /// Returns only blocking dependencies
     pub fn blocking(&self) -> impl Iterator<Item = &Dependency> {
-        self.0.iter().filter(|d| d.dep_type == DependencyType::Blocks)
+        self.0
+            .iter()
+            .filter(|d| d.dep_type == DependencyType::Blocks)
     }
 
     /// Returns dependencies by type
@@ -455,13 +461,138 @@ pub struct Task {
     /// ID of the task this was compacted into (set on non-representative compacted tasks)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compacted_into: Option<TaskId>,
+
+    // --- Agent coordination fields ---
+    /// Agent that has claimed this task
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claimed_by: Option<String>,
+
+    /// When the task was claimed
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claimed_at: Option<DateTime<Utc>>,
+
+    /// Notes/context accumulated during work
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<Note>,
+
+    /// Links to artifacts (commits, PRs, files, URLs)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<Link>,
+
+    /// Explicit block (separate from dependency blocks)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub blocked: Option<BlockInfo>,
+
+    /// Task history/timeline
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub history: Vec<HistoryEvent>,
+
+    /// Agent this task is assigned to (for handoff)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assigned_to: Option<String>,
+}
+
+/// A note added during task work
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Note {
+    /// When the note was added
+    pub at: DateTime<Utc>,
+    /// Who added the note
+    pub by: String,
+    /// The note text
+    pub text: String,
+}
+
+/// A link to an artifact
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Link {
+    /// Type of link (commit, pr, file, url)
+    #[serde(rename = "type")]
+    pub link_type: LinkType,
+    /// The reference (commit hash, PR number, file path, URL)
+    #[serde(rename = "ref")]
+    pub reference: String,
+    /// When the link was added
+    pub at: DateTime<Utc>,
+    /// Who added the link
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub by: Option<String>,
+}
+
+/// Type of artifact link
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LinkType {
+    Commit,
+    Pr,
+    File,
+    Url,
+}
+
+impl LinkType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            LinkType::Commit => "commit",
+            LinkType::Pr => "pr",
+            LinkType::File => "file",
+            LinkType::Url => "url",
+        }
+    }
+}
+
+/// Information about an explicit block
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BlockInfo {
+    /// Reason for the block
+    pub reason: String,
+    /// Who blocked the task
+    pub by: String,
+    /// When it was blocked
+    pub at: DateTime<Utc>,
+    /// Optional task ID this is blocked on
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_task: Option<TaskId>,
+}
+
+/// A history event for the task timeline
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HistoryEvent {
+    /// When the event occurred
+    pub at: DateTime<Utc>,
+    /// Type of event
+    pub event: HistoryEventType,
+    /// Who caused the event
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub by: Option<String>,
+    /// Additional event data
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
+}
+
+/// Types of history events
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HistoryEventType {
+    Created,
+    Started,
+    Completed,
+    Reopened,
+    Claimed,
+    Unclaimed,
+    Note,
+    Linked,
+    Unlinked,
+    Blocked,
+    Unblocked,
+    Assigned,
+    Handoff,
 }
 
 impl Task {
     /// Creates a new task with the given ID and title
     pub fn new(id: TaskId, title: impl Into<String>) -> Self {
         let now = Utc::now();
-        Self {
+        let mut task = Self {
             id,
             title: title.into(),
             status: TaskStatus::Todo,
@@ -475,7 +606,16 @@ impl Task {
             summary: None,
             compacted_tasks: None,
             compacted_into: None,
-        }
+            claimed_by: None,
+            claimed_at: None,
+            notes: Vec::new(),
+            links: Vec::new(),
+            blocked: None,
+            history: Vec::new(),
+            assigned_to: None,
+        };
+        task.add_history_event(HistoryEventType::Created, None, None);
+        task
     }
 
     /// Returns the brief ID this task belongs to, or None if standalone
@@ -648,6 +788,246 @@ impl Task {
         self.compacted_into = None;
         self.updated_at = Utc::now();
     }
+
+    // --- Agent coordination methods ---
+
+    /// Claims this task for an agent
+    pub fn claim(&mut self, agent: impl Into<String>) {
+        let agent = agent.into();
+        let now = Utc::now();
+        self.claimed_by = Some(agent.clone());
+        self.claimed_at = Some(now);
+        self.updated_at = now;
+        // Also start the task when claiming
+        if self.status == TaskStatus::Todo {
+            self.status = TaskStatus::InProgress;
+            self.versions.touch_status();
+            self.add_history_event(HistoryEventType::Started, Some(&agent), None);
+        }
+        self.add_history_event(HistoryEventType::Claimed, Some(&agent), None);
+    }
+
+    /// Unclaims this task
+    pub fn unclaim(&mut self, agent: Option<&str>) {
+        if self.claimed_by.is_some() {
+            // Get the by string before modifying self
+            let by_str = agent
+                .map(|s| s.to_string())
+                .or_else(|| self.claimed_by.clone());
+            self.add_history_event(HistoryEventType::Unclaimed, by_str.as_deref(), None);
+            self.claimed_by = None;
+            self.claimed_at = None;
+            self.updated_at = Utc::now();
+        }
+    }
+
+    /// Returns true if the task is currently claimed
+    pub fn is_claimed(&self) -> bool {
+        self.claimed_by.is_some()
+    }
+
+    /// Returns true if the claim has expired
+    pub fn is_claim_expired(&self, timeout_hours: u32) -> bool {
+        if let Some(claimed_at) = self.claimed_at {
+            let duration = chrono::Duration::hours(timeout_hours as i64);
+            Utc::now() > claimed_at + duration
+        } else {
+            false
+        }
+    }
+
+    /// Returns the remaining time on the claim in hours (or None if not claimed)
+    pub fn claim_remaining_hours(&self, timeout_hours: u32) -> Option<f64> {
+        if let Some(claimed_at) = self.claimed_at {
+            let duration = chrono::Duration::hours(timeout_hours as i64);
+            let expires_at = claimed_at + duration;
+            let remaining = expires_at - Utc::now();
+            if remaining.num_seconds() > 0 {
+                Some(remaining.num_minutes() as f64 / 60.0)
+            } else {
+                Some(0.0)
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Adds a note to the task
+    pub fn add_note(&mut self, agent: impl Into<String>, text: impl Into<String>) {
+        let agent = agent.into();
+        let text = text.into();
+        let now = Utc::now();
+        self.notes.push(Note {
+            at: now,
+            by: agent.clone(),
+            text: text.clone(),
+        });
+        self.updated_at = now;
+        self.add_history_event(
+            HistoryEventType::Note,
+            Some(&agent),
+            Some(serde_json::json!({ "text": text })),
+        );
+    }
+
+    /// Adds a link to an artifact
+    pub fn add_link(
+        &mut self,
+        link_type: LinkType,
+        reference: impl Into<String>,
+        agent: Option<&str>,
+    ) {
+        let reference = reference.into();
+        let now = Utc::now();
+        self.links.push(Link {
+            link_type,
+            reference: reference.clone(),
+            at: now,
+            by: agent.map(|s| s.to_string()),
+        });
+        self.updated_at = now;
+        self.add_history_event(
+            HistoryEventType::Linked,
+            agent,
+            Some(serde_json::json!({ "type": link_type, "ref": reference })),
+        );
+    }
+
+    /// Removes a link
+    pub fn remove_link(
+        &mut self,
+        link_type: LinkType,
+        reference: &str,
+        agent: Option<&str>,
+    ) -> bool {
+        let len_before = self.links.len();
+        self.links
+            .retain(|l| !(l.link_type == link_type && l.reference == reference));
+        if self.links.len() != len_before {
+            self.updated_at = Utc::now();
+            self.add_history_event(
+                HistoryEventType::Unlinked,
+                agent,
+                Some(serde_json::json!({ "type": link_type, "ref": reference })),
+            );
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Blocks the task with a reason
+    pub fn block(
+        &mut self,
+        reason: impl Into<String>,
+        agent: impl Into<String>,
+        on_task: Option<TaskId>,
+    ) {
+        let reason = reason.into();
+        let agent = agent.into();
+        let now = Utc::now();
+        self.blocked = Some(BlockInfo {
+            reason: reason.clone(),
+            by: agent.clone(),
+            at: now,
+            on_task: on_task.clone(),
+        });
+        self.updated_at = now;
+        let mut data = serde_json::json!({ "reason": reason });
+        if let Some(ref task_id) = on_task {
+            data["on_task"] = serde_json::json!(task_id.to_string());
+        }
+        self.add_history_event(HistoryEventType::Blocked, Some(&agent), Some(data));
+    }
+
+    /// Unblocks the task
+    pub fn unblock(&mut self, agent: Option<&str>) {
+        if self.blocked.is_some() {
+            self.blocked = None;
+            self.updated_at = Utc::now();
+            self.add_history_event(HistoryEventType::Unblocked, agent, None);
+        }
+    }
+
+    /// Returns true if the task is explicitly blocked (not just dependency blocked)
+    pub fn is_explicitly_blocked(&self) -> bool {
+        self.blocked.is_some()
+    }
+
+    /// Returns true if the task is ready, considering both dependencies and explicit blocks
+    pub fn is_ready_for_agent(
+        &self,
+        task_statuses: &HashMap<TaskId, TaskStatus>,
+        exclude_claimed_by: Option<&str>,
+    ) -> bool {
+        // Not ready if complete
+        if self.status.is_complete() {
+            return false;
+        }
+        // Not ready if explicitly blocked
+        if self.is_explicitly_blocked() {
+            return false;
+        }
+        // Not ready if claimed by someone else
+        if let Some(claimed_by) = &self.claimed_by {
+            if let Some(exclude) = exclude_claimed_by {
+                if claimed_by != exclude {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        // Check dependencies
+        self.is_ready(task_statuses)
+    }
+
+    /// Assigns the task to an agent (for handoff)
+    pub fn assign(&mut self, agent: impl Into<String>, by: Option<&str>) {
+        let agent = agent.into();
+        self.assigned_to = Some(agent.clone());
+        self.updated_at = Utc::now();
+        self.add_history_event(
+            HistoryEventType::Assigned,
+            by,
+            Some(serde_json::json!({ "to": agent })),
+        );
+    }
+
+    /// Hands off the task (unclaims and optionally assigns)
+    pub fn handoff(&mut self, reason: impl Into<String>, agent: &str, to: Option<String>) {
+        let reason = reason.into();
+        // Add note with handoff reason
+        self.add_note(agent, format!("Handoff: {}", reason));
+        // Record handoff event
+        let mut data = serde_json::json!({ "reason": reason });
+        if let Some(ref to_agent) = to {
+            data["to"] = serde_json::json!(to_agent);
+        }
+        self.add_history_event(HistoryEventType::Handoff, Some(agent), Some(data));
+        // Unclaim
+        self.unclaim(Some(agent));
+        // Optionally assign to new agent
+        if let Some(to_agent) = to {
+            self.assigned_to = Some(to_agent);
+        }
+    }
+
+    /// Adds a history event
+    fn add_history_event(
+        &mut self,
+        event: HistoryEventType,
+        by: Option<&str>,
+        data: Option<serde_json::Value>,
+    ) {
+        self.history.push(HistoryEvent {
+            at: Utc::now(),
+            event,
+            by: by.map(|s| s.to_string()),
+            data,
+        });
+    }
+
 }
 
 #[cfg(test)]
@@ -812,7 +1192,10 @@ mod tests {
         // Check counts
         assert_eq!(task4.depends_on.len(), 3);
         assert_eq!(task4.depends_on.blocking().count(), 1);
-        assert_eq!(task4.depends_on.by_type(DependencyType::Provenance).count(), 1);
+        assert_eq!(
+            task4.depends_on.by_type(DependencyType::Provenance).count(),
+            1
+        );
         assert_eq!(task4.depends_on.by_type(DependencyType::Related).count(), 1);
 
         // Only blocking deps affect ready/blocked
@@ -866,7 +1249,13 @@ mod tests {
 
         assert_eq!(parsed.depends_on.len(), 2);
         assert_eq!(parsed.depends_on.blocking().count(), 1);
-        assert_eq!(parsed.depends_on.by_type(DependencyType::Provenance).count(), 1);
+        assert_eq!(
+            parsed
+                .depends_on
+                .by_type(DependencyType::Provenance)
+                .count(),
+            1
+        );
     }
 
     #[test]
@@ -962,5 +1351,297 @@ mod tests {
         let parsed: Task = serde_json::from_str(&json).unwrap();
 
         assert_eq!(parsed.compacted_into, Some(task1.id));
+    }
+
+    // --- Agent coordination tests ---
+
+    #[test]
+    fn claim_unclaim_lifecycle() {
+        let mut task = make_task(1);
+
+        // Initially not claimed
+        assert!(!task.is_claimed());
+        assert!(task.claimed_by.is_none());
+        assert!(task.claimed_at.is_none());
+
+        // Claim the task
+        task.claim("agent-1");
+        assert!(task.is_claimed());
+        assert_eq!(task.claimed_by, Some("agent-1".to_string()));
+        assert!(task.claimed_at.is_some());
+        // Claiming also starts the task
+        assert_eq!(task.status, TaskStatus::InProgress);
+
+        // Check history has claim and start events
+        let claim_events: Vec<_> = task
+            .history
+            .iter()
+            .filter(|e| e.event == HistoryEventType::Claimed)
+            .collect();
+        assert_eq!(claim_events.len(), 1);
+        assert_eq!(claim_events[0].by, Some("agent-1".to_string()));
+
+        // Unclaim the task
+        task.unclaim(Some("agent-1"));
+        assert!(!task.is_claimed());
+        assert!(task.claimed_by.is_none());
+        assert!(task.claimed_at.is_none());
+
+        // Check history has unclaim event
+        let unclaim_events: Vec<_> = task
+            .history
+            .iter()
+            .filter(|e| e.event == HistoryEventType::Unclaimed)
+            .collect();
+        assert_eq!(unclaim_events.len(), 1);
+    }
+
+    #[test]
+    fn claim_expiration() {
+        let mut task = make_task(1);
+        task.claim("agent-1");
+
+        // With a 4-hour timeout, claim should not be expired
+        assert!(!task.is_claim_expired(4));
+
+        // Remaining hours should be close to 4
+        let remaining = task.claim_remaining_hours(4).unwrap();
+        assert!(remaining > 3.9 && remaining <= 4.0);
+
+        // With a 0-hour timeout, claim should be expired
+        assert!(task.is_claim_expired(0));
+        let remaining_zero = task.claim_remaining_hours(0).unwrap();
+        assert_eq!(remaining_zero, 0.0);
+    }
+
+    #[test]
+    fn add_and_remove_note() {
+        let mut task = make_task(1);
+
+        assert!(task.notes.is_empty());
+
+        task.add_note("agent-1", "First note");
+        assert_eq!(task.notes.len(), 1);
+        assert_eq!(task.notes[0].by, "agent-1");
+        assert_eq!(task.notes[0].text, "First note");
+
+        task.add_note("agent-2", "Second note");
+        assert_eq!(task.notes.len(), 2);
+
+        // Check history
+        let note_events: Vec<_> = task
+            .history
+            .iter()
+            .filter(|e| e.event == HistoryEventType::Note)
+            .collect();
+        assert_eq!(note_events.len(), 2);
+    }
+
+    #[test]
+    fn add_and_remove_link() {
+        let mut task = make_task(1);
+
+        assert!(task.links.is_empty());
+
+        // Add links
+        task.add_link(LinkType::Commit, "abc123", Some("agent-1"));
+        task.add_link(LinkType::Pr, "42", Some("agent-1"));
+        task.add_link(LinkType::File, "src/main.rs", None);
+        assert_eq!(task.links.len(), 3);
+
+        // Check link details
+        assert_eq!(task.links[0].link_type, LinkType::Commit);
+        assert_eq!(task.links[0].reference, "abc123");
+        assert_eq!(task.links[0].by, Some("agent-1".to_string()));
+
+        // Remove a link
+        let removed = task.remove_link(LinkType::Commit, "abc123", Some("agent-1"));
+        assert!(removed);
+        assert_eq!(task.links.len(), 2);
+
+        // Try to remove non-existent link
+        let not_removed = task.remove_link(LinkType::Commit, "xyz789", None);
+        assert!(!not_removed);
+        assert_eq!(task.links.len(), 2);
+
+        // Check history
+        let linked_events: Vec<_> = task
+            .history
+            .iter()
+            .filter(|e| e.event == HistoryEventType::Linked)
+            .collect();
+        assert_eq!(linked_events.len(), 3);
+
+        let unlinked_events: Vec<_> = task
+            .history
+            .iter()
+            .filter(|e| e.event == HistoryEventType::Unlinked)
+            .collect();
+        assert_eq!(unlinked_events.len(), 1);
+    }
+
+    #[test]
+    fn block_and_unblock() {
+        let mut task = make_task(1);
+
+        assert!(!task.is_explicitly_blocked());
+        assert!(task.blocked.is_none());
+
+        // Block the task
+        task.block("Waiting for API spec", "agent-1", None);
+        assert!(task.is_explicitly_blocked());
+        assert!(task.blocked.is_some());
+
+        let block_info = task.blocked.as_ref().unwrap();
+        assert_eq!(block_info.reason, "Waiting for API spec");
+        assert_eq!(block_info.by, "agent-1");
+        assert!(block_info.on_task.is_none());
+
+        // Unblock the task
+        task.unblock(Some("agent-2"));
+        assert!(!task.is_explicitly_blocked());
+        assert!(task.blocked.is_none());
+
+        // Check history
+        let blocked_events: Vec<_> = task
+            .history
+            .iter()
+            .filter(|e| e.event == HistoryEventType::Blocked)
+            .collect();
+        assert_eq!(blocked_events.len(), 1);
+
+        let unblocked_events: Vec<_> = task
+            .history
+            .iter()
+            .filter(|e| e.event == HistoryEventType::Unblocked)
+            .collect();
+        assert_eq!(unblocked_events.len(), 1);
+    }
+
+    #[test]
+    fn block_on_another_task() {
+        let task1 = make_task(1);
+        let mut task2 = make_task(2);
+
+        task2.block("Depends on task 1 completion", "agent-1", Some(task1.id.clone()));
+
+        let block_info = task2.blocked.as_ref().unwrap();
+        assert_eq!(block_info.on_task, Some(task1.id));
+    }
+
+    #[test]
+    fn is_ready_for_agent() {
+        let mut task = make_task(1);
+        let statuses = HashMap::new();
+
+        // Task is ready for any agent initially
+        assert!(task.is_ready_for_agent(&statuses, None));
+        assert!(task.is_ready_for_agent(&statuses, Some("agent-1")));
+
+        // Claim the task
+        task.claim("agent-1");
+
+        // Not ready for other agents
+        assert!(!task.is_ready_for_agent(&statuses, None));
+        assert!(!task.is_ready_for_agent(&statuses, Some("agent-2")));
+
+        // Still ready for the claiming agent
+        assert!(task.is_ready_for_agent(&statuses, Some("agent-1")));
+
+        // Block the task
+        task.block("Blocked", "agent-1", None);
+
+        // Not ready for anyone when explicitly blocked
+        assert!(!task.is_ready_for_agent(&statuses, Some("agent-1")));
+    }
+
+    #[test]
+    fn handoff_creates_note_and_unclaims() {
+        let mut task = make_task(1);
+        task.claim("agent-1");
+
+        assert!(task.is_claimed());
+        assert!(task.notes.is_empty());
+
+        // Handoff to another agent
+        task.handoff("Need human review", "agent-1", Some("human".to_string()));
+
+        // Task should be unclaimed
+        assert!(!task.is_claimed());
+
+        // Should have assigned_to set
+        assert_eq!(task.assigned_to, Some("human".to_string()));
+
+        // Should have a handoff note
+        assert_eq!(task.notes.len(), 1);
+        assert!(task.notes[0].text.contains("Handoff: Need human review"));
+
+        // Check history has handoff event
+        let handoff_events: Vec<_> = task
+            .history
+            .iter()
+            .filter(|e| e.event == HistoryEventType::Handoff)
+            .collect();
+        assert_eq!(handoff_events.len(), 1);
+    }
+
+    #[test]
+    fn new_task_has_created_history_event() {
+        let task = make_task(1);
+
+        assert!(!task.history.is_empty());
+        assert_eq!(task.history[0].event, HistoryEventType::Created);
+    }
+
+    #[test]
+    fn reclaim_does_not_duplicate_start_event() {
+        let mut task = make_task(1);
+
+        // First claim starts the task
+        task.claim("agent-1");
+        let start_count_1 = task
+            .history
+            .iter()
+            .filter(|e| e.event == HistoryEventType::Started)
+            .count();
+        assert_eq!(start_count_1, 1);
+
+        // Unclaim
+        task.unclaim(Some("agent-1"));
+
+        // Re-claim should not add another start event (task is already in progress)
+        task.claim("agent-1");
+        let start_count_2 = task
+            .history
+            .iter()
+            .filter(|e| e.event == HistoryEventType::Started)
+            .count();
+        assert_eq!(start_count_2, 1); // Still just 1
+
+        // But should have 2 claim events
+        let claim_count = task
+            .history
+            .iter()
+            .filter(|e| e.event == HistoryEventType::Claimed)
+            .count();
+        assert_eq!(claim_count, 2);
+    }
+
+    #[test]
+    fn agent_fields_serde_roundtrip() {
+        let mut task = make_task(1);
+        task.claim("agent-1");
+        task.add_note("agent-1", "Test note");
+        task.add_link(LinkType::Commit, "abc123", Some("agent-1"));
+        task.block("Test block", "agent-1", None);
+
+        let json = serde_json::to_string(&task).unwrap();
+        let parsed: Task = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.claimed_by, task.claimed_by);
+        assert_eq!(parsed.notes.len(), task.notes.len());
+        assert_eq!(parsed.links.len(), task.links.len());
+        assert!(parsed.blocked.is_some());
+        assert!(!parsed.history.is_empty());
     }
 }

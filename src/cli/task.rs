@@ -392,6 +392,14 @@ fn show_task(output: &Output, id_str: &str) -> Result<()> {
             "meta": task.meta,
             "is_ready": is_ready,
             "is_blocked": is_blocked,
+            // Agent coordination fields
+            "claimed_by": task.claimed_by,
+            "claimed_at": task.claimed_at,
+            "notes": task.notes,
+            "links": task.links,
+            "blocked": task.blocked,
+            "history": task.history,
+            "assigned_to": task.assigned_to,
         }));
     } else {
         println!("Task: {}", task.id);
@@ -412,9 +420,15 @@ fn show_task(output: &Output, id_str: &str) -> Result<()> {
         // Display dependencies grouped by type
         use crate::domain::DependencyType;
         let blocking: Vec<_> = task.depends_on.by_type(DependencyType::Blocks).collect();
-        let provenance: Vec<_> = task.depends_on.by_type(DependencyType::Provenance).collect();
+        let provenance: Vec<_> = task
+            .depends_on
+            .by_type(DependencyType::Provenance)
+            .collect();
         let related: Vec<_> = task.depends_on.by_type(DependencyType::Related).collect();
-        let duplicates: Vec<_> = task.depends_on.by_type(DependencyType::Duplicates).collect();
+        let duplicates: Vec<_> = task
+            .depends_on
+            .by_type(DependencyType::Duplicates)
+            .collect();
 
         if !blocking.is_empty() {
             println!("\nDependencies:");
@@ -423,32 +437,61 @@ fn show_task(output: &Output, id_str: &str) -> Result<()> {
                     .get(&dep.task)
                     .map(|s| format!("{:?}", s))
                     .unwrap_or_else(|| "?".to_string());
-                println!("  [{}] {}: {} ({})", dep.dep_type.label(), dep.task,
-                    tasks.get(&dep.task).map(|t| t.title.as_str()).unwrap_or("?"), dep_status);
+                println!(
+                    "  [{}] {}: {} ({})",
+                    dep.dep_type.label(),
+                    dep.task,
+                    tasks
+                        .get(&dep.task)
+                        .map(|t| t.title.as_str())
+                        .unwrap_or("?"),
+                    dep_status
+                );
             }
         }
 
         if !provenance.is_empty() {
             println!("\nProvenance:");
             for dep in &provenance {
-                println!("  [{}] {}: {}", dep.dep_type.label(), dep.task,
-                    tasks.get(&dep.task).map(|t| t.title.as_str()).unwrap_or("?"));
+                println!(
+                    "  [{}] {}: {}",
+                    dep.dep_type.label(),
+                    dep.task,
+                    tasks
+                        .get(&dep.task)
+                        .map(|t| t.title.as_str())
+                        .unwrap_or("?")
+                );
             }
         }
 
         if !related.is_empty() {
             println!("\nRelated:");
             for dep in &related {
-                println!("  [{}] {}: {}", dep.dep_type.label(), dep.task,
-                    tasks.get(&dep.task).map(|t| t.title.as_str()).unwrap_or("?"));
+                println!(
+                    "  [{}] {}: {}",
+                    dep.dep_type.label(),
+                    dep.task,
+                    tasks
+                        .get(&dep.task)
+                        .map(|t| t.title.as_str())
+                        .unwrap_or("?")
+                );
             }
         }
 
         if !duplicates.is_empty() {
             println!("\nDuplicates:");
             for dep in &duplicates {
-                println!("  [{}] {}: {} (WARNING: may be duplicate)", dep.dep_type.label(), dep.task,
-                    tasks.get(&dep.task).map(|t| t.title.as_str()).unwrap_or("?"));
+                println!(
+                    "  [{}] {}: {} (WARNING: may be duplicate)",
+                    dep.dep_type.label(),
+                    dep.task,
+                    tasks
+                        .get(&dep.task)
+                        .map(|t| t.title.as_str())
+                        .unwrap_or("?")
+                );
             }
         }
 
@@ -632,12 +675,7 @@ fn remove_typed_dependency(
     Ok(())
 }
 
-fn add_duplicate(
-    output: &Output,
-    task_str: &str,
-    original_str: &str,
-    close: bool,
-) -> Result<()> {
+fn add_duplicate(output: &Output, task_str: &str, original_str: &str, close: bool) -> Result<()> {
     use crate::domain::Dependency;
 
     let project = Project::open_current()?;

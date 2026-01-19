@@ -9,6 +9,7 @@
 //! | Core | Project management | `init`, `status` |
 //! | Brief | Document lifecycle | `brief new`, `brief list`, `brief show` |
 //! | Task | Work item management | `task add`, `task start`, `task done` |
+//! | Agent | Multi-agent coordination | `claim`, `next`, `note`, `block` |
 //! | Query | Task state queries | `ready`, `blocked` |
 //! | Context | AI integration | `context`, `context --compact` |
 //! | Advanced | Plugins and sync | `plugin list`, `sync run` |
@@ -30,9 +31,10 @@
 //!
 //! Call [`run()`] to parse arguments and execute the appropriate command.
 
+mod agent;
 mod agent_setup;
-mod brief;
 mod app;
+mod brief;
 mod cache_cmd;
 mod compact;
 mod context;

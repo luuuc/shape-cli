@@ -111,6 +111,41 @@ pub struct DaemonConfig {
     pub push_branch: String,
 }
 
+/// Configuration for agent coordination
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AgentConfig {
+    /// Agent name (defaults to $SHAPE_AGENT, then $USER)
+    pub name: Option<String>,
+
+    /// Claim timeout in hours (default: 4)
+    pub claim_timeout_hours: u32,
+
+    /// Auto-unclaim when task is marked done
+    pub auto_unclaim_on_done: bool,
+}
+
+impl Default for AgentConfig {
+    fn default() -> Self {
+        Self {
+            name: None,
+            claim_timeout_hours: 4,
+            auto_unclaim_on_done: true,
+        }
+    }
+}
+
+impl AgentConfig {
+    /// Gets the effective agent name from config, environment, or defaults
+    pub fn effective_name(&self) -> String {
+        self.name
+            .clone()
+            .or_else(|| std::env::var("SHAPE_AGENT").ok())
+            .or_else(|| std::env::var("USER").ok())
+            .unwrap_or_else(|| "anonymous".to_string())
+    }
+}
+
 impl Default for DaemonConfig {
     fn default() -> Self {
         Self {
@@ -143,6 +178,9 @@ pub struct ProjectConfig {
 
     /// Daemon settings
     pub daemon: DaemonConfig,
+
+    /// Agent coordination settings
+    pub agent: AgentConfig,
 }
 
 impl ProjectConfig {
@@ -153,6 +191,7 @@ impl ProjectConfig {
             context_days: 7,
             compaction: CompactionConfig::default(),
             daemon: DaemonConfig::default(),
+            agent: AgentConfig::default(),
         }
     }
 }

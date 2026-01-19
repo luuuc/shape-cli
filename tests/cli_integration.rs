@@ -1067,13 +1067,7 @@ fn test_compact_and_context_integration() {
     // Create brief
     let output = shape_cmd()
         .current_dir(dir.path())
-        .args([
-            "brief",
-            "new",
-            "Compaction Integration",
-            "--format",
-            "json",
-        ])
+        .args(["brief", "new", "Compaction Integration", "--format", "json"])
         .assert()
         .success();
 
@@ -1236,7 +1230,9 @@ fn test_daemon_logs_no_file() {
         .args(["daemon", "logs"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("No daemon logs found for this project"));
+        .stdout(predicate::str::contains(
+            "No daemon logs found for this project",
+        ));
 }
 
 #[test]
@@ -1259,4 +1255,449 @@ fn test_daemon_config_in_project() {
     assert!(json["config"]["auto_commit"].as_bool().unwrap());
     assert!(!json["config"]["auto_push"].as_bool().unwrap());
     assert_eq!(json["config"]["debounce_seconds"].as_u64().unwrap(), 5);
+}
+
+// =============================================================================
+// Agent Coordination Tests
+// =============================================================================
+
+#[test]
+fn test_claim_and_unclaim() {
+    let dir = setup_project();
+
+    // Create a standalone task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Task to claim", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let task_id = json["id"].as_str().unwrap();
+
+    // Claim the task
+    let claim_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["claim", task_id, "--format", "json"])
+        .assert()
+        .success();
+
+    let claim_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
+        &claim_output.get_output().stdout,
+    ))
+    .unwrap();
+    assert!(claim_json["claimed_by"].is_string());
+    assert_eq!(claim_json["status"].as_str().unwrap(), "in_progress");
+
+    // Verify task is now in progress
+    let show_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "show", task_id, "--format", "json"])
+        .assert()
+        .success();
+
+    let show_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
+        &show_output.get_output().stdout,
+    ))
+    .unwrap();
+    assert_eq!(show_json["status"].as_str().unwrap(), "in_progress");
+
+    // Unclaim the task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["unclaim", task_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Released claim"));
+}
+
+#[test]
+fn test_claim_force_override() {
+    let dir = setup_project();
+
+    // Create a task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Contested task", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let task_id = json["id"].as_str().unwrap();
+
+    // First claim with agent-1
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["claim", task_id, "--agent", "agent-1"])
+        .assert()
+        .success();
+
+    // Second claim without force should fail
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["claim", task_id, "--agent", "agent-2"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("claimed by"));
+
+    // Force claim should succeed with reason
+    shape_cmd()
+        .current_dir(dir.path())
+        .args([
+            "claim",
+            task_id,
+            "--agent",
+            "agent-2",
+            "--force",
+            "--reason",
+            "Agent 1 crashed",
+        ])
+        .assert()
+        .success();
+
+    // Verify new claim
+    let show_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "show", task_id, "--format", "json"])
+        .assert()
+        .success();
+
+    let show_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
+        &show_output.get_output().stdout,
+    ))
+    .unwrap();
+    assert_eq!(show_json["claimed_by"].as_str().unwrap(), "agent-2");
+}
+
+#[test]
+fn test_next_suggests_ready_task() {
+    let dir = setup_project();
+
+    // Create brief
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["brief", "new", "Next Test", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let brief_id = json["id"].as_str().unwrap();
+
+    // Create tasks with different priorities
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", brief_id, "Low priority task"])
+        .assert()
+        .success();
+
+    let high_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", brief_id, "High priority task", "--format", "json"])
+        .assert()
+        .success();
+
+    let high_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
+        &high_output.get_output().stdout,
+    ))
+    .unwrap();
+    let high_task_id = high_json["id"].as_str().unwrap();
+
+    // Set high priority
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "meta", high_task_id, "priority", "high"])
+        .assert()
+        .success();
+
+    // Next should recommend the high priority task
+    let next_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["next", "--format", "json"])
+        .assert()
+        .success();
+
+    let next_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
+        &next_output.get_output().stdout,
+    ))
+    .unwrap();
+
+    assert_eq!(
+        next_json["recommended"]["priority"].as_str().unwrap(),
+        "high"
+    );
+}
+
+#[test]
+fn test_note_adds_to_task() {
+    let dir = setup_project();
+
+    // Create task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Task with notes", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let task_id = json["id"].as_str().unwrap();
+
+    // Add a note
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["note", task_id, "Found edge case in validation"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Added note"));
+
+    // Add another note
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["note", task_id, "Fixed the edge case"])
+        .assert()
+        .success();
+
+    // History should show the notes
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["history", task_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Found edge case"))
+        .stdout(predicate::str::contains("Fixed the edge case"));
+}
+
+#[test]
+fn test_link_and_unlink_artifacts() {
+    let dir = setup_project();
+
+    // Create task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Task with links", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let task_id = json["id"].as_str().unwrap();
+
+    // Link a commit
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["link", task_id, "--commit", "abc123"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("commit:abc123"));
+
+    // Link a file
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["link", task_id, "--file", "src/main.rs"])
+        .assert()
+        .success();
+
+    // History should show the links
+    let history_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["history", task_id])
+        .assert()
+        .success();
+
+    let history_stdout = String::from_utf8_lossy(&history_output.get_output().stdout);
+    assert!(history_stdout.contains("commit") || history_stdout.contains("abc123"));
+
+    // Unlink the commit
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["unlink", task_id, "--commit", "abc123"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Removed"));
+}
+
+#[test]
+fn test_block_and_unblock() {
+    let dir = setup_project();
+
+    // Create task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Blockable task", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let task_id = json["id"].as_str().unwrap();
+
+    // Block the task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["block", task_id, "Waiting for API spec"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Blocked"));
+
+    // Next should not suggest blocked task
+    let next_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["next", "--format", "json"])
+        .assert()
+        .success();
+
+    let next_stdout = String::from_utf8_lossy(&next_output.get_output().stdout);
+    // Either empty or doesn't contain our blocked task
+    assert!(
+        !next_stdout.contains("Blockable task") || next_stdout.contains("No tasks ready")
+    );
+
+    // Unblock the task
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["unblock", task_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Unblocked"));
+}
+
+#[test]
+fn test_history_shows_timeline() {
+    let dir = setup_project();
+
+    // Create task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Task for history", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let task_id = json["id"].as_str().unwrap();
+
+    // Perform several actions
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["claim", task_id])
+        .assert()
+        .success();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["note", task_id, "Working on it"])
+        .assert()
+        .success();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["unclaim", task_id])
+        .assert()
+        .success();
+
+    // History should show all events
+    let history_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["history", task_id, "--format", "json"])
+        .assert()
+        .success();
+
+    let history_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
+        &history_output.get_output().stdout,
+    ))
+    .unwrap();
+
+    let history = history_json["history"].as_array().unwrap();
+    assert!(history.len() >= 4); // created, started, claimed, note, unclaimed
+
+    // Verify event types are present
+    let event_types: Vec<&str> = history
+        .iter()
+        .map(|e| e["event"].as_str().unwrap())
+        .collect();
+    assert!(event_types.contains(&"created"));
+    assert!(event_types.contains(&"claimed"));
+    assert!(event_types.contains(&"note"));
+    assert!(event_types.contains(&"unclaimed"));
+}
+
+#[test]
+fn test_summary_project() {
+    let dir = setup_project();
+
+    // Create some tasks
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Task 1"])
+        .assert()
+        .success();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Task 2"])
+        .assert()
+        .success();
+
+    // Project summary
+    let summary_output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["summary", "--format", "json"])
+        .assert()
+        .success();
+
+    let summary_json: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(
+        &summary_output.get_output().stdout,
+    ))
+    .unwrap();
+
+    assert!(summary_json["tasks"]["total"].as_u64().unwrap() >= 2);
+    assert!(summary_json["tasks"]["ready"].as_u64().unwrap() >= 2);
+}
+
+#[test]
+fn test_handoff_task() {
+    let dir = setup_project();
+
+    // Create and claim task
+    let output = shape_cmd()
+        .current_dir(dir.path())
+        .args(["task", "add", "Task to handoff", "--format", "json"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let task_id = json["id"].as_str().unwrap();
+
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["claim", task_id, "--agent", "agent-1"])
+        .assert()
+        .success();
+
+    // Handoff to human
+    shape_cmd()
+        .current_dir(dir.path())
+        .args([
+            "handoff",
+            task_id,
+            "Needs human review for security audit",
+            "--to",
+            "human",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Handed off"));
+
+    // History should show handoff
+    shape_cmd()
+        .current_dir(dir.path())
+        .args(["history", task_id])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("handoff"))
+        .stdout(predicate::str::contains("human"));
 }

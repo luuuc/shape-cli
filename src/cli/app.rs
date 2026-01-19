@@ -5,8 +5,8 @@ use clap::{Parser, Subcommand};
 
 use super::output::{Output, OutputFormat};
 use super::{
-    agent_setup, brief, cache_cmd, compact, context, daemon, merge_driver, plugin_cmd, query,
-    sync_cmd, task, tui,
+    agent, agent_setup, brief, cache_cmd, compact, context, daemon, merge_driver, plugin_cmd,
+    query, sync_cmd, task, tui,
 };
 use crate::storage::Project;
 
@@ -166,6 +166,139 @@ pub enum Commands {
         #[arg(short, long, default_value = "overview")]
         view: String,
     },
+
+    // --- Agent coordination commands (top-level for convenience) ---
+    /// Claim a task for the current agent
+    Claim {
+        /// Task ID to claim
+        id: String,
+
+        /// Agent name (defaults to $SHAPE_AGENT or $USER)
+        #[arg(long)]
+        agent: Option<String>,
+
+        /// Force claim even if already claimed by another agent (requires --reason)
+        #[arg(long)]
+        force: bool,
+
+        /// Reason for force-claiming (required when --force is used)
+        #[arg(long, required_if_eq("force", "true"))]
+        reason: Option<String>,
+    },
+
+    /// Release a claim on a task
+    Unclaim {
+        /// Task ID to unclaim
+        id: String,
+    },
+
+    /// Suggest the next best task to work on
+    Next {
+        /// Filter by brief ID
+        #[arg(long)]
+        brief: Option<String>,
+
+        /// Number of suggestions (default: 1)
+        #[arg(short, long, default_value = "1")]
+        n: usize,
+    },
+
+    /// Add a note to a task
+    Note {
+        /// Task ID
+        id: String,
+
+        /// Note text
+        text: String,
+    },
+
+    /// Link an artifact to a task
+    Link {
+        /// Task ID
+        id: String,
+
+        /// Commit hash
+        #[arg(long)]
+        commit: Option<String>,
+
+        /// PR number
+        #[arg(long)]
+        pr: Option<String>,
+
+        /// File path
+        #[arg(long)]
+        file: Option<String>,
+
+        /// URL
+        #[arg(long)]
+        url: Option<String>,
+    },
+
+    /// Remove a link from a task
+    Unlink {
+        /// Task ID
+        id: String,
+
+        /// Commit hash
+        #[arg(long)]
+        commit: Option<String>,
+
+        /// PR number
+        #[arg(long)]
+        pr: Option<String>,
+
+        /// File path
+        #[arg(long)]
+        file: Option<String>,
+
+        /// URL
+        #[arg(long)]
+        url: Option<String>,
+    },
+
+    /// Block a task with a reason
+    Block {
+        /// Task ID
+        id: String,
+
+        /// Reason for blocking
+        reason: String,
+
+        /// Task ID this is blocked on
+        #[arg(long = "on")]
+        on_task: Option<String>,
+    },
+
+    /// Unblock a task
+    Unblock {
+        /// Task ID
+        id: String,
+    },
+
+    /// Show task history/timeline
+    History {
+        /// Task or brief ID
+        id: String,
+    },
+
+    /// Show project or brief summary
+    Summary {
+        /// Brief ID (optional)
+        id: Option<String>,
+    },
+
+    /// Hand off a task to another agent or human
+    Handoff {
+        /// Task ID
+        id: String,
+
+        /// Reason for handoff
+        reason: String,
+
+        /// Agent to hand off to (use "human" for human review)
+        #[arg(long)]
+        to: Option<String>,
+    },
 }
 
 /// Advanced commands for plugins and external sync
@@ -288,8 +421,84 @@ pub fn run() -> Result<()> {
         },
 
         Commands::Tui { brief, view } => {
-            output.verbose_ctx("tui", &format!("Launching TUI, brief={:?}, view={}", brief, view));
+            output.verbose_ctx(
+                "tui",
+                &format!("Launching TUI, brief={:?}, view={}", brief, view),
+            );
             tui::run(&output, brief.as_deref(), &view)?
+        }
+
+        // Agent coordination commands (top-level)
+        Commands::Claim {
+            id,
+            agent,
+            force,
+            reason,
+        } => agent::run(
+            agent::AgentCommands::Claim {
+                id,
+                agent,
+                force,
+                reason,
+            },
+            &output,
+        )?,
+        Commands::Unclaim { id } => agent::run(agent::AgentCommands::Unclaim { id }, &output)?,
+        Commands::Next { brief, n } => {
+            agent::run(agent::AgentCommands::Next { brief, n }, &output)?
+        }
+        Commands::Note { id, text } => {
+            agent::run(agent::AgentCommands::Note { id, text }, &output)?
+        }
+        Commands::Link {
+            id,
+            commit,
+            pr,
+            file,
+            url,
+        } => agent::run(
+            agent::AgentCommands::Link {
+                id,
+                commit,
+                pr,
+                file,
+                url,
+            },
+            &output,
+        )?,
+        Commands::Unlink {
+            id,
+            commit,
+            pr,
+            file,
+            url,
+        } => agent::run(
+            agent::AgentCommands::Unlink {
+                id,
+                commit,
+                pr,
+                file,
+                url,
+            },
+            &output,
+        )?,
+        Commands::Block {
+            id,
+            reason,
+            on_task,
+        } => agent::run(
+            agent::AgentCommands::Block {
+                id,
+                reason,
+                on_task,
+            },
+            &output,
+        )?,
+        Commands::Unblock { id } => agent::run(agent::AgentCommands::Unblock { id }, &output)?,
+        Commands::History { id } => agent::run(agent::AgentCommands::History { id }, &output)?,
+        Commands::Summary { id } => agent::run(agent::AgentCommands::Summary { id }, &output)?,
+        Commands::Handoff { id, reason, to } => {
+            agent::run(agent::AgentCommands::Handoff { id, reason, to }, &output)?
         }
     }
 
