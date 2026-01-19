@@ -32,22 +32,22 @@ fn rebuild(output: &Output) -> Result<()> {
 
     let cache = project.cache()?;
     let (todo, in_progress, done) = cache.task_counts()?;
-    let anchor_counts = cache.anchor_counts()?;
-    let total_anchors: usize = anchor_counts.values().sum();
+    let brief_counts = cache.brief_counts()?;
+    let total_briefs: usize = brief_counts.values().sum();
 
     if output.is_json() {
         output.data(&serde_json::json!({
             "rebuilt": true,
             "duration_ms": duration.as_millis(),
             "tasks": todo + in_progress + done,
-            "anchors": total_anchors,
+            "briefs": total_briefs,
         }));
     } else {
         output.success(&format!(
-            "Cache rebuilt in {:?} ({} tasks, {} anchors)",
+            "Cache rebuilt in {:?} ({} tasks, {} briefs)",
             duration,
             todo + in_progress + done,
-            total_anchors
+            total_briefs
         ));
     }
 
@@ -62,8 +62,8 @@ fn status(output: &Output) -> Result<()> {
     let cache_path = cache.path().to_path_buf();
 
     let (todo, in_progress, done) = cache.task_counts()?;
-    let anchor_counts = cache.anchor_counts()?;
-    let total_anchors: usize = anchor_counts.values().sum();
+    let brief_counts = cache.brief_counts()?;
+    let total_briefs: usize = brief_counts.values().sum();
 
     if output.is_json() {
         output.data(&serde_json::json!({
@@ -75,7 +75,7 @@ fn status(output: &Output) -> Result<()> {
                 "in_progress": in_progress,
                 "done": done,
             },
-            "anchors": total_anchors,
+            "briefs": total_briefs,
         }));
     } else {
         println!("Cache Status");
@@ -98,7 +98,7 @@ fn status(output: &Output) -> Result<()> {
             in_progress,
             done
         );
-        println!("  Anchors: {}", total_anchors);
+        println!("  Briefs: {}", total_briefs);
 
         if is_stale {
             println!();

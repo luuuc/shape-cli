@@ -18,13 +18,13 @@ use super::protocol::PluginRequest;
 /// ID mapping between local and remote
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdMapping {
-    /// Local ID (anchor or task)
+    /// Local ID (brief or task)
     pub local_id: String,
 
     /// Remote ID (e.g., GitHub issue number)
     pub remote_id: String,
 
-    /// Type of entity (anchor or task)
+    /// Type of entity (brief or task)
     pub entity_type: EntityType,
 
     /// Last sync timestamp
@@ -35,7 +35,8 @@ pub struct IdMapping {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EntityType {
-    Anchor,
+    #[serde(alias = "anchor")]
+    Brief,
     Task,
 }
 
@@ -93,7 +94,7 @@ impl<'a> SyncPlugin<'a> {
     /// Pushes local changes to remote
     pub fn push(
         &self,
-        anchors: &[serde_json::Value],
+        briefs: &[serde_json::Value],
         tasks: &[serde_json::Value],
     ) -> Result<SyncResult> {
         let mappings = self.mapping_store.read_all()?;
@@ -101,7 +102,7 @@ impl<'a> SyncPlugin<'a> {
         let request = PluginRequest::new(
             "push",
             serde_json::json!({
-                "anchors": anchors,
+                "briefs": briefs,
                 "tasks": tasks,
                 "mappings": mappings.values().collect::<Vec<_>>(),
             }),
@@ -168,8 +169,8 @@ impl<'a> SyncPlugin<'a> {
             self.mapping_store.write_all(&mappings)?;
         }
 
-        let anchors: Vec<serde_json::Value> = data
-            .get("anchors")
+        let briefs: Vec<serde_json::Value> = data
+            .get("briefs")
             .cloned()
             .map(|v| serde_json::from_value(v).unwrap_or_default())
             .unwrap_or_default();
@@ -183,7 +184,7 @@ impl<'a> SyncPlugin<'a> {
         let result: SyncResult =
             serde_json::from_value(data).context("Failed to parse sync result")?;
 
-        Ok((result, anchors, tasks))
+        Ok((result, briefs, tasks))
     }
 
     /// Gets the sync status
@@ -192,9 +193,9 @@ impl<'a> SyncPlugin<'a> {
 
         Ok(SyncStatus {
             plugin: self.plugin_name.clone(),
-            mapped_anchors: mappings
+            mapped_briefs: mappings
                 .values()
-                .filter(|m| m.entity_type == EntityType::Anchor)
+                .filter(|m| m.entity_type == EntityType::Brief)
                 .count(),
             mapped_tasks: mappings
                 .values()
@@ -239,8 +240,8 @@ pub struct SyncStatus {
     /// Plugin name
     pub plugin: String,
 
-    /// Number of anchors with mappings
-    pub mapped_anchors: usize,
+    /// Number of briefs with mappings
+    pub mapped_briefs: usize,
 
     /// Number of tasks with mappings
     pub mapped_tasks: usize,
@@ -331,7 +332,7 @@ mod tests {
             IdMapping {
                 local_id: "a-1234567".to_string(),
                 remote_id: "123".to_string(),
-                entity_type: EntityType::Anchor,
+                entity_type: EntityType::Brief,
                 last_sync: Utc::now(),
             },
             IdMapping {

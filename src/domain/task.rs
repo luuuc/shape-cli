@@ -1,13 +1,13 @@
 //! Task domain model
 //!
-//! Tasks are the executable units of work within an anchor.
+//! Tasks are the executable units of work within a brief.
 //! They can have dependencies on other tasks and support subtasks.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 
-use super::id::{AnchorId, TaskId};
+use super::id::{BriefId, TaskId};
 
 /// Type of dependency between tasks
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -401,7 +401,7 @@ pub fn current_timestamp() -> i64 {
     Utc::now().timestamp_millis()
 }
 
-/// A task within an anchor
+/// A task within a brief
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Task {
     /// Unique identifier
@@ -478,12 +478,12 @@ impl Task {
         }
     }
 
-    /// Returns the anchor ID this task belongs to, or None if standalone
-    pub fn anchor_id(&self) -> Option<AnchorId> {
-        self.id.anchor_id()
+    /// Returns the brief ID this task belongs to, or None if standalone
+    pub fn brief_id(&self) -> Option<BriefId> {
+        self.id.brief_id()
     }
 
-    /// Returns true if this is a standalone task (not belonging to an anchor)
+    /// Returns true if this is a standalone task (not belonging to a brief)
     pub fn is_standalone(&self) -> bool {
         self.id.is_standalone()
     }
@@ -655,8 +655,8 @@ mod tests {
     use super::*;
 
     fn make_task(seq: u32) -> Task {
-        let anchor = AnchorId::new("Test", Utc::now());
-        let task_id = TaskId::new(&anchor, seq);
+        let brief = BriefId::new("Test", Utc::now());
+        let task_id = TaskId::new(&brief, seq);
         Task::new(task_id, format!("Task {}", seq))
     }
 
@@ -767,21 +767,21 @@ mod tests {
     }
 
     #[test]
-    fn task_belongs_to_anchor() {
-        let anchor = AnchorId::new("Test", Utc::now());
-        let task_id = TaskId::new(&anchor, 1);
+    fn task_belongs_to_brief() {
+        let brief = BriefId::new("Test", Utc::now());
+        let task_id = TaskId::new(&brief, 1);
         let task = Task::new(task_id, "Task 1");
 
-        assert_eq!(task.anchor_id(), Some(anchor));
+        assert_eq!(task.brief_id(), Some(brief));
         assert!(!task.is_standalone());
     }
 
     #[test]
-    fn standalone_task_has_no_anchor() {
+    fn standalone_task_has_no_brief() {
         let task_id = TaskId::new_standalone("Standalone task", Utc::now());
         let task = Task::new(task_id, "Standalone task");
 
-        assert!(task.anchor_id().is_none());
+        assert!(task.brief_id().is_none());
         assert!(task.is_standalone());
     }
 
@@ -834,10 +834,10 @@ mod tests {
     #[test]
     fn backward_compatible_deserialization() {
         // Create test task IDs using the proper format
-        let anchor = AnchorId::new("Test", Utc::now());
-        let task_id = TaskId::new(&anchor, 1);
-        let dep1_id = TaskId::new(&anchor, 2);
-        let dep2_id = TaskId::new(&anchor, 3);
+        let brief = BriefId::new("Test", Utc::now());
+        let task_id = TaskId::new(&brief, 1);
+        let dep1_id = TaskId::new(&brief, 2);
+        let dep2_id = TaskId::new(&brief, 3);
 
         // Old format: array of strings (just task IDs)
         let old_format = format!(

@@ -18,21 +18,21 @@ fn setup_context_test_project() -> TempDir {
     // Initialize
     shape_cmd().arg("init").arg(dir.path()).assert().success();
 
-    // Create anchor
+    // Create brief
     let output = shape_cmd()
         .current_dir(dir.path())
-        .args(["anchor", "new", "Test Anchor", "--format", "json"])
+        .args(["brief", "new", "Test Anchor", "--format", "json"])
         .assert()
         .success();
 
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     let json: Value = serde_json::from_str(&stdout).unwrap();
-    let anchor_id = json["id"].as_str().unwrap().to_string();
+    let brief_id = json["id"].as_str().unwrap().to_string();
 
     // Create tasks with various states
     let output1 = shape_cmd()
         .current_dir(dir.path())
-        .args(["task", "add", &anchor_id, "Ready Task", "--format", "json"])
+        .args(["task", "add", &brief_id, "Ready Task", "--format", "json"])
         .assert()
         .success();
     let task1_id =
@@ -47,7 +47,7 @@ fn setup_context_test_project() -> TempDir {
         .args([
             "task",
             "add",
-            &anchor_id,
+            &brief_id,
             "Blocked Task",
             "--format",
             "json",
@@ -66,7 +66,7 @@ fn setup_context_test_project() -> TempDir {
         .args([
             "task",
             "add",
-            &anchor_id,
+            &brief_id,
             "In Progress Task",
             "--format",
             "json",
@@ -85,7 +85,7 @@ fn setup_context_test_project() -> TempDir {
         .args([
             "task",
             "add",
-            &anchor_id,
+            &brief_id,
             "Completed Task",
             "--format",
             "json",
@@ -142,7 +142,7 @@ fn test_compact_format_has_required_top_level_keys() {
 
     // Verify required top-level keys exist
     assert!(json.is_object(), "Context must be a JSON object");
-    assert!(json.get("anchors").is_some(), "Missing 'anchors' key");
+    assert!(json.get("briefs").is_some(), "Missing 'briefs' key");
     assert!(json.get("ready").is_some(), "Missing 'ready' key");
     assert!(
         json.get("in_progress").is_some(),
@@ -156,7 +156,7 @@ fn test_compact_format_has_required_top_level_keys() {
 }
 
 #[test]
-fn test_compact_format_anchors_are_array() {
+fn test_compact_format_briefs_are_array() {
     let dir = setup_context_test_project();
 
     let output = shape_cmd()
@@ -168,14 +168,14 @@ fn test_compact_format_anchors_are_array() {
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     let json: Value = serde_json::from_str(&stdout).unwrap();
 
-    let anchors = json.get("anchors").unwrap();
-    assert!(anchors.is_array(), "'anchors' must be an array");
+    let briefs = json.get("briefs").unwrap();
+    assert!(briefs.is_array(), "'briefs' must be an array");
 
-    // Each anchor must have id, title, status
-    for anchor in anchors.as_array().unwrap() {
-        assert!(anchor.get("id").is_some(), "Anchor missing 'id'");
-        assert!(anchor.get("title").is_some(), "Anchor missing 'title'");
-        assert!(anchor.get("status").is_some(), "Anchor missing 'status'");
+    // Each brief must have id, title, status
+    for brief in briefs.as_array().unwrap() {
+        assert!(brief.get("id").is_some(), "Anchor missing 'id'");
+        assert!(brief.get("title").is_some(), "Anchor missing 'title'");
+        assert!(brief.get("status").is_some(), "Anchor missing 'status'");
     }
 }
 
@@ -295,7 +295,7 @@ fn test_full_format_has_required_structure() {
     let json: Value = serde_json::from_str(&stdout).unwrap();
 
     // Verify required top-level keys
-    assert!(json.get("anchors").is_some(), "Missing 'anchors' key");
+    assert!(json.get("briefs").is_some(), "Missing 'briefs' key");
     assert!(json.get("tasks").is_some(), "Missing 'tasks' key");
     assert!(json.get("summary").is_some(), "Missing 'summary' key");
 }
@@ -347,8 +347,8 @@ fn test_full_format_summary_structure() {
 
     // Verify summary fields
     assert!(
-        summary.get("total_anchors").is_some(),
-        "Missing summary.total_anchors"
+        summary.get("total_briefs").is_some(),
+        "Missing summary.total_briefs"
     );
     assert!(
         summary.get("total_tasks").is_some(),
@@ -369,7 +369,7 @@ fn test_full_format_summary_structure() {
 }
 
 #[test]
-fn test_full_format_anchor_includes_body() {
+fn test_full_format_brief_includes_body() {
     let dir = setup_context_test_project();
 
     let output = shape_cmd()
@@ -381,14 +381,14 @@ fn test_full_format_anchor_includes_body() {
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     let json: Value = serde_json::from_str(&stdout).unwrap();
 
-    let anchors = json.get("anchors").unwrap().as_array().unwrap();
-    for anchor in anchors {
-        assert!(anchor.get("id").is_some(), "Anchor missing 'id'");
-        assert!(anchor.get("title").is_some(), "Anchor missing 'title'");
-        assert!(anchor.get("type").is_some(), "Anchor missing 'type'");
-        assert!(anchor.get("status").is_some(), "Anchor missing 'status'");
-        assert!(anchor.get("body").is_some(), "Anchor missing 'body'");
-        assert!(anchor.get("meta").is_some(), "Anchor missing 'meta'");
+    let briefs = json.get("briefs").unwrap().as_array().unwrap();
+    for brief in briefs {
+        assert!(brief.get("id").is_some(), "Anchor missing 'id'");
+        assert!(brief.get("title").is_some(), "Anchor missing 'title'");
+        assert!(brief.get("type").is_some(), "Anchor missing 'type'");
+        assert!(brief.get("status").is_some(), "Anchor missing 'status'");
+        assert!(brief.get("body").is_some(), "Anchor missing 'body'");
+        assert!(brief.get("meta").is_some(), "Anchor missing 'meta'");
     }
 }
 
@@ -409,7 +409,7 @@ fn test_full_format_ready_task_includes_details() {
     for task in ready {
         assert!(task.get("id").is_some(), "Task missing 'id'");
         assert!(task.get("title").is_some(), "Task missing 'title'");
-        assert!(task.get("anchor").is_some(), "Task missing 'anchor'");
+        assert!(task.get("brief").is_some(), "Task missing 'brief'");
     }
 }
 
@@ -430,8 +430,8 @@ fn test_context_reflects_actual_state() {
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     let json: Value = serde_json::from_str(&stdout).unwrap();
 
-    // Should have 1 anchor
-    assert_eq!(json["anchors"].as_array().unwrap().len(), 1);
+    // Should have 1 brief
+    assert_eq!(json["briefs"].as_array().unwrap().len(), 1);
 
     // Should have 1 ready task (Ready Task)
     let ready: Vec<&str> = json["ready"]
@@ -483,19 +483,19 @@ fn test_context_reflects_actual_state() {
 }
 
 #[test]
-fn test_context_anchor_filter() {
+fn test_context_brief_filter() {
     let dir = TempDir::new().unwrap();
 
     // Initialize
     shape_cmd().arg("init").arg(dir.path()).assert().success();
 
-    // Create two anchors
+    // Create two briefs
     let output1 = shape_cmd()
         .current_dir(dir.path())
-        .args(["anchor", "new", "Anchor One", "--format", "json"])
+        .args(["brief", "new", "Anchor One", "--format", "json"])
         .assert()
         .success();
-    let anchor1_id =
+    let brief1_id =
         serde_json::from_str::<Value>(&String::from_utf8_lossy(&output1.get_output().stdout))
             .unwrap()["id"]
             .as_str()
@@ -504,36 +504,36 @@ fn test_context_anchor_filter() {
 
     let output2 = shape_cmd()
         .current_dir(dir.path())
-        .args(["anchor", "new", "Anchor Two", "--format", "json"])
+        .args(["brief", "new", "Anchor Two", "--format", "json"])
         .assert()
         .success();
-    let _anchor2_id =
+    let _brief2_id =
         serde_json::from_str::<Value>(&String::from_utf8_lossy(&output2.get_output().stdout))
             .unwrap()["id"]
             .as_str()
             .unwrap()
             .to_string();
 
-    // Add task to anchor1
+    // Add task to brief1
     shape_cmd()
         .current_dir(dir.path())
-        .args(["task", "add", &anchor1_id, "Anchor1 Task"])
+        .args(["task", "add", &brief1_id, "Anchor1 Task"])
         .assert()
         .success();
 
-    // Filter context by anchor1
+    // Filter context by brief1
     let output = shape_cmd()
         .current_dir(dir.path())
-        .args(["context", "--compact", "--anchor", &anchor1_id])
+        .args(["context", "--compact", "--brief", &brief1_id])
         .assert()
         .success();
 
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     let json: Value = serde_json::from_str(&stdout).unwrap();
 
-    // Should only have 1 anchor
-    assert_eq!(json["anchors"].as_array().unwrap().len(), 1);
-    assert!(json["anchors"][0]["title"]
+    // Should only have 1 brief
+    assert_eq!(json["briefs"].as_array().unwrap().len(), 1);
+    assert!(json["briefs"][0]["title"]
         .as_str()
         .unwrap()
         .contains("Anchor One"));
@@ -556,7 +556,7 @@ fn test_empty_project_context() {
     let json: Value = serde_json::from_str(&stdout).unwrap();
 
     // All arrays should be empty
-    assert_eq!(json["anchors"].as_array().unwrap().len(), 0);
+    assert_eq!(json["briefs"].as_array().unwrap().len(), 0);
     assert_eq!(json["ready"].as_array().unwrap().len(), 0);
     assert_eq!(json["blocked"].as_array().unwrap().len(), 0);
     assert_eq!(json["in_progress"].as_array().unwrap().len(), 0);

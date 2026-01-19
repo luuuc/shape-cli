@@ -1,6 +1,6 @@
 //! # Plugin System
 //!
-//! Extensibility layer for custom anchor types and external tool sync.
+//! Extensibility layer for custom brief types and external tool sync.
 //!
 //! ## Overview
 //!
@@ -11,7 +11,7 @@
 //!
 //! | Type | Binary Pattern | Purpose |
 //! |------|----------------|---------|
-//! | Anchor Type | `shape-anchor-{name}` | Custom document templates and validation |
+//! | Brief Type | `shape-brief-{name}` | Custom document templates and validation |
 //! | Sync | `shape-sync-{name}` | Bidirectional sync with external tools |
 //!
 //! ## Plugin Discovery
@@ -34,7 +34,7 @@
 //!
 //! Every plugin must support `--manifest` to declare its capabilities.
 //!
-//! ## Built-in Anchor Types
+//! ## Built-in Brief Types
 //!
 //! - `minimal` - Basic title and status (default)
 //! - `shapeup` - ShapeUp methodology: appetite, rabbit holes, no-gos
@@ -43,17 +43,17 @@
 //!
 //! - [`PluginLoader`] - Discovers and executes plugins
 //! - [`PluginManifest`] - Declares plugin capabilities
-//! - [`AnchorTypePlugin`] - Trait for anchor type plugins
+//! - [`BriefTypePlugin`] - Trait for brief type plugins
 //! - [`SyncPlugin`] - Trait for sync plugins
 
-mod anchor_type;
+mod brief_type;
 mod loader;
 mod protocol;
 mod shapeup;
 mod sync;
 
-pub use anchor_type::{AnchorTemplate, AnchorTypePlugin, MinimalAnchorType};
+pub use brief_type::{BriefTemplate, BriefTypePlugin, MinimalBriefType};
 pub use loader::{PluginInfo, PluginLoader};
 pub use protocol::{PluginManifest, PluginMessage, PluginRequest, PluginResponse};
-pub use shapeup::ShapeUpAnchorType;
+pub use shapeup::ShapeUpBriefType;
 pub use sync::{EntityType, IdMapping, SyncOperation, SyncPlugin, SyncResult};

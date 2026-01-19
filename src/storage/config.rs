@@ -20,20 +20,20 @@ pub enum ConfigError {
     Parse(String),
 }
 
-/// Default anchor type for new anchors
+/// Default brief type for new briefs
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
-pub enum DefaultAnchorType {
+pub enum DefaultBriefType {
     #[default]
     Minimal,
     Custom(String),
 }
 
-impl DefaultAnchorType {
+impl DefaultBriefType {
     pub fn as_str(&self) -> &str {
         match self {
-            DefaultAnchorType::Minimal => "minimal",
-            DefaultAnchorType::Custom(s) => s,
+            DefaultBriefType::Minimal => "minimal",
+            DefaultBriefType::Custom(s) => s,
         }
     }
 }
@@ -129,8 +129,8 @@ impl Default for DaemonConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct ProjectConfig {
-    /// Default anchor type for `shape anchor new`
-    pub default_anchor_type: DefaultAnchorType,
+    /// Default brief type for `shape brief new`
+    pub default_brief_type: DefaultBriefType,
 
     /// Plugins to load
     pub plugins: Vec<String>,
@@ -148,7 +148,7 @@ pub struct ProjectConfig {
 impl ProjectConfig {
     pub fn default() -> Self {
         Self {
-            default_anchor_type: DefaultAnchorType::Minimal,
+            default_brief_type: DefaultBriefType::Minimal,
             plugins: vec![],
             context_days: 7,
             compaction: CompactionConfig::default(),
@@ -164,7 +164,7 @@ pub struct GlobalConfig {
     /// Default output format (text or json)
     pub default_format: OutputFormat,
 
-    /// Editor command for editing anchors
+    /// Editor command for editing briefs
     pub editor: Option<String>,
 }
 
@@ -345,14 +345,14 @@ mod tests {
     #[test]
     fn parse_project_config() {
         let toml = r#"
-default_anchor_type = "minimal"
-plugins = ["shape-anchor-shapeup"]
+default_brief_type = "minimal"
+plugins = ["shape-brief-shapeup"]
 context_days = 14
 "#;
 
         let config: ProjectConfig = toml::from_str(toml).unwrap();
         assert_eq!(config.context_days, 14);
-        assert_eq!(config.plugins, vec!["shape-anchor-shapeup"]);
+        assert_eq!(config.plugins, vec!["shape-brief-shapeup"]);
     }
 
     #[test]
@@ -401,11 +401,11 @@ editor = "code"
     }
 
     #[test]
-    fn default_anchor_type() {
-        let minimal = DefaultAnchorType::Minimal;
+    fn default_brief_type() {
+        let minimal = DefaultBriefType::Minimal;
         assert_eq!(minimal.as_str(), "minimal");
 
-        let custom = DefaultAnchorType::Custom("shapeup".to_string());
+        let custom = DefaultBriefType::Custom("shapeup".to_string());
         assert_eq!(custom.as_str(), "shapeup");
     }
 }

@@ -1,6 +1,6 @@
 # Shape CLI
 
-A local-first task management tool for software teams. Organize work around "anchors" (pitches, RFCs, PRDs) with dependent tasks and AI-optimized context export.
+A local-first task management tool for software teams. Organize work around "briefs" (pitches, RFCs, PRDs) with dependent tasks and AI-optimized context export.
 
 ## Installation
 
@@ -57,15 +57,15 @@ Download from [GitHub Releases](https://github.com/shape-cli/shape/releases):
 # Initialize a project
 shape init
 
-# Create an anchor (pitch/RFC/etc)
-shape anchor new "My Feature Pitch" --type shapeup
+# Create a brief (pitch/RFC/etc)
+shape brief new "My Feature Pitch" --type shapeup
 
-# Add tasks to the anchor
-shape task add a-1234567 "Build the API"
-shape task add a-1234567 "Write tests"
+# Add tasks to the brief
+shape task add b-1234567 "Build the API"
+shape task add b-1234567 "Write tests"
 
 # Set dependencies
-shape task dep a-1234567.2 a-1234567.1
+shape task dep b-1234567.2 b-1234567.1
 
 # See what's ready to work on
 shape ready
@@ -79,12 +79,12 @@ shape context --compact
 | Command | Description |
 |---------|-------------|
 | `shape init` | Initialize a new shape project |
-| `shape anchor new "Title"` | Create a new anchor |
-| `shape anchor list` | List all anchors |
-| `shape anchor show <id>` | Show anchor details |
-| `shape anchor status <id> <status>` | Update anchor status |
+| `shape brief new "Title"` | Create a new brief |
+| `shape brief list` | List all briefs |
+| `shape brief show <id>` | Show brief details |
+| `shape brief status <id> <status>` | Update brief status |
 | `shape task add <parent> "Title"` | Add a task |
-| `shape task list <anchor>` | List tasks for an anchor |
+| `shape task list <brief>` | List tasks for a brief |
 | `shape task show <id>` | Show task details |
 | `shape task start <id>` | Mark task in progress |
 | `shape task done <id>` | Mark task complete |
@@ -101,11 +101,11 @@ shape context --compact
 | `shape sync status` | Show sync status |
 | `shape sync link <local> <remote>` | Link IDs manually |
 
-## Anchor Types
+## Brief Types
 
 ### Minimal (default)
 
-Basic anchor with title and status.
+Basic brief with title and status.
 
 ### ShapeUp
 
@@ -117,17 +117,17 @@ Full ShapeUp pitch template with:
 - No-gos (out of scope)
 
 ```bash
-shape anchor new "My Pitch" --type shapeup
+shape brief new "My Pitch" --type shapeup
 ```
 
 ## Storage
 
 Data is stored in `.shape/`:
-- `anchors/*.md` - Markdown files with YAML frontmatter
+- `briefs/*.md` - Markdown files with YAML frontmatter
 - `tasks.jsonl` - Task data in JSON Lines format
 - `config.toml` - Project configuration
 
-Anchors are human-editable markdown files.
+Briefs are human-editable markdown files.
 
 ## AI Context Export
 
@@ -140,8 +140,8 @@ shape context
 # Compact (minimal tokens)
 shape context --compact
 
-# Single anchor
-shape context --anchor a-1234567
+# Single brief
+shape context --brief b-1234567
 
 # Include older completed tasks
 shape context --days 14
@@ -158,17 +158,17 @@ shape sync run github
 # Check sync status
 shape sync status
 
-# Manually link a local anchor to a remote issue
-shape sync link a-1234567 123 --plugin github
+# Manually link a local brief to a remote issue
+shape sync link b-1234567 123 --plugin github
 ```
 
 ## Plugin Development
 
 Plugins communicate via JSON over stdin/stdout. Two plugin types are supported:
 
-### Anchor Type Plugins
+### Brief Type Plugins
 
-Create custom anchor templates and validation. Binary name format: `shape-anchor-<name>`
+Create custom brief templates and validation. Binary name format: `shape-brief-<name>`
 
 ### Sync Plugins
 
@@ -223,10 +223,10 @@ shape context --compact  # Already optimized for AI
 shape ready --format json
 
 # Starts working on a task
-shape task start a-abc1234.1
+shape task start b-abc1234.1
 
 # Completes the task
-shape task done a-abc1234.1
+shape task done b-abc1234.1
 
 # Gets full context if needed
 shape context --compact

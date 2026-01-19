@@ -1,13 +1,16 @@
-//! Hierarchical ID system for anchors and tasks
+//! Hierarchical ID system for briefs and tasks
 //!
 //! ID Format:
-//! - Anchor IDs: `a-{7-char-hash}` (e.g., `a-7f2b4c1`)
-//! - Task IDs (anchored): `{anchor-id}.{sequence}` (e.g., `a-7f2b4c1.1`)
+//! - Brief IDs: `b-{7-char-hash}` (e.g., `b-7f2b4c1`)
+//! - Task IDs (under brief): `{brief-id}.{sequence}` (e.g., `b-7f2b4c1.1`)
 //! - Task IDs (standalone): `t-{7-char-hash}` (e.g., `t-9d3e5f2`)
-//! - Subtask IDs: `{task-id}.{sequence}` (e.g., `a-7f2b4c1.1.1` or `t-9d3e5f2.1`)
+//! - Subtask IDs: `{task-id}.{sequence}` (e.g., `b-7f2b4c1.1.1` or `t-9d3e5f2.1`)
 //!
 //! Hash is derived from title + creation timestamp, ensuring uniqueness.
 //! Same title at different times produces different IDs (by design).
+//!
+//! Note: Old `a-` prefixed IDs are still accepted for backward compatibility
+//! and are automatically treated as brief IDs.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -17,10 +20,10 @@ use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq)]
 pub enum IdError {
-    #[error("Invalid anchor ID format: expected 'a-{{7-char-hash}}', got '{0}'")]
-    InvalidAnchorId(String),
+    #[error("Invalid brief ID format: expected 'b-{{7-char-hash}}', got '{0}'")]
+    InvalidBriefId(String),
 
-    #[error("Invalid task ID format: expected '{{anchor-id}}.{{sequence}}' or 't-{{7-char-hash}}', got '{0}'")]
+    #[error("Invalid task ID format: expected '{{brief-id}}.{{sequence}}' or 't-{{7-char-hash}}', got '{0}'")]
     InvalidTaskId(String),
 
     #[error("Invalid sequence number: {0}")]
@@ -35,15 +38,15 @@ fn generate_hash(title: &str, timestamp: DateTime<Utc>) -> String {
     hex[..7].to_string()
 }
 
-/// Anchor ID in the format `a-{7-char-hash}`
+/// Brief ID in the format `b-{7-char-hash}`
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
-pub struct AnchorId {
+pub struct BriefId {
     hash: String,
 }
 
-impl AnchorId {
-    /// Creates a new anchor ID from title and timestamp
+impl BriefId {
+    /// Creates a new brief ID from title and timestamp
     pub fn new(title: &str, timestamp: DateTime<Utc>) -> Self {
         Self {
             hash: generate_hash(title, timestamp),
@@ -55,7 +58,7 @@ impl AnchorId {
         &self.hash
     }
 
-    /// Creates a task ID for this anchor with the given sequence number
+    /// Creates a task ID for this brief with the given sequence number
     pub fn task_id(&self, sequence: u32) -> TaskId {
         TaskId {
             hash: self.hash.clone(),
@@ -65,24 +68,30 @@ impl AnchorId {
     }
 }
 
-impl fmt::Display for AnchorId {
+impl fmt::Display for BriefId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "a-{}", self.hash)
+        write!(f, "b-{}", self.hash)
     }
 }
 
-impl FromStr for AnchorId {
+impl FromStr for BriefId {
     type Err = IdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim();
-        if !s.starts_with("a-") {
-            return Err(IdError::InvalidAnchorId(s.to_string()));
-        }
 
-        let hash = &s[2..];
+        // Accept both b- (new) and a- (legacy) prefixes
+        let hash = if let Some(rest) = s.strip_prefix("b-") {
+            rest
+        } else if let Some(rest) = s.strip_prefix("a-") {
+            // Legacy format - still accepted
+            rest
+        } else {
+            return Err(IdError::InvalidBriefId(s.to_string()));
+        };
+
         if hash.len() != 7 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err(IdError::InvalidAnchorId(s.to_string()));
+            return Err(IdError::InvalidBriefId(s.to_string()));
         }
 
         Ok(Self {
@@ -91,7 +100,7 @@ impl FromStr for AnchorId {
     }
 }
 
-impl TryFrom<String> for AnchorId {
+impl TryFrom<String> for BriefId {
     type Error = IdError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -99,33 +108,35 @@ impl TryFrom<String> for AnchorId {
     }
 }
 
-impl From<AnchorId> for String {
-    fn from(id: AnchorId) -> Self {
+impl From<BriefId> for String {
+    fn from(id: BriefId) -> Self {
         id.to_string()
     }
 }
 
-/// Task ID - can be anchored (`a-{hash}.{seq}`) or standalone (`t-{hash}`)
+/// Task ID - can be under a brief (`b-{hash}.{seq}`) or standalone (`t-{hash}`)
 ///
-/// Anchored tasks belong to an anchor: `a-7f2b4c1.1`
+/// Tasks under briefs: `b-7f2b4c1.1`
 /// Standalone tasks exist independently: `t-9d3e5f2`
-/// Both support subtasks: `a-7f2b4c1.1.1` or `t-9d3e5f2.1`
+/// Both support subtasks: `b-7f2b4c1.1.1` or `t-9d3e5f2.1`
+///
+/// Note: Legacy `a-` prefixed IDs are still accepted for backward compatibility.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct TaskId {
-    /// The hash portion of the ID (from anchor or standalone)
+    /// The hash portion of the ID (from brief or standalone)
     hash: String,
-    /// Whether this is a standalone task (t-) or anchored (a-)
+    /// Whether this is a standalone task (t-) or under a brief (b-/a-)
     standalone: bool,
-    /// Sequence segments (empty for top-level standalone, non-empty for anchored or subtasks)
+    /// Sequence segments (empty for top-level standalone, non-empty for brief tasks or subtasks)
     segments: Vec<u32>,
 }
 
 impl TaskId {
-    /// Creates a new anchored task ID for a given anchor with a sequence number
-    pub fn new(anchor_id: &AnchorId, sequence: u32) -> Self {
+    /// Creates a new task ID for a given brief with a sequence number
+    pub fn new(brief_id: &BriefId, sequence: u32) -> Self {
         Self {
-            hash: anchor_id.hash().to_string(),
+            hash: brief_id.hash().to_string(),
             standalone: false,
             segments: vec![sequence],
         }
@@ -145,12 +156,12 @@ impl TaskId {
         self.standalone
     }
 
-    /// Returns the anchor ID this task belongs to, or None if standalone
-    pub fn anchor_id(&self) -> Option<AnchorId> {
+    /// Returns the brief ID this task belongs to, or None if standalone
+    pub fn brief_id(&self) -> Option<BriefId> {
         if self.standalone {
             None
         } else {
-            Some(AnchorId {
+            Some(BriefId {
                 hash: self.hash.clone(),
             })
         }
@@ -161,14 +172,14 @@ impl TaskId {
         &self.hash
     }
 
-    /// Returns the sequence segments (e.g., `[1]` for anchored task, `[1, 2]` for subtask)
+    /// Returns the sequence segments (e.g., `[1]` for brief task, `[1, 2]` for subtask)
     /// Empty for top-level standalone tasks
     pub fn segments(&self) -> &[u32] {
         &self.segments
     }
 
     /// Returns the depth of this task
-    /// - Anchored top-level: 1
+    /// - Brief top-level: 1
     /// - Standalone top-level: 0
     /// - Subtasks: segments.len()
     pub fn depth(&self) -> usize {
@@ -176,7 +187,7 @@ impl TaskId {
     }
 
     /// Returns true if this is a subtask (has parent task)
-    /// For anchored tasks: depth > 1
+    /// For brief tasks: depth > 1
     /// For standalone tasks: depth > 0 (has any segments)
     pub fn is_subtask(&self) -> bool {
         if self.standalone {
@@ -208,7 +219,7 @@ impl TaskId {
                 segments: self.segments[..self.segments.len() - 1].to_vec(),
             })
         } else {
-            // For anchored tasks, parent exists if depth > 1
+            // For brief tasks, parent exists if depth > 1
             if self.segments.len() <= 1 {
                 return None;
             }
@@ -234,7 +245,7 @@ impl TaskId {
 
 impl fmt::Display for TaskId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let prefix = if self.standalone { "t" } else { "a" };
+        let prefix = if self.standalone { "t" } else { "b" };
         write!(f, "{}-{}", prefix, self.hash)?;
         for seg in &self.segments {
             write!(f, ".{}", seg)?;
@@ -278,12 +289,16 @@ impl FromStr for TaskId {
             });
         }
 
-        // Check for anchored task ID (a-{hash}.{seq}...)
-        if !s.starts_with("a-") {
+        // Check for brief task ID (b-{hash}.{seq}... or legacy a-{hash}.{seq}...)
+        let rest = if let Some(r) = s.strip_prefix("b-") {
+            r
+        } else if let Some(r) = s.strip_prefix("a-") {
+            // Legacy format - still accepted
+            r
+        } else {
             return Err(IdError::InvalidTaskId(s.to_string()));
-        }
+        };
 
-        let rest = &s[2..];
         let parts: Vec<&str> = rest.split('.').collect();
 
         if parts.is_empty() {
@@ -295,7 +310,7 @@ impl FromStr for TaskId {
             return Err(IdError::InvalidTaskId(s.to_string()));
         }
 
-        // Anchored tasks must have at least one segment
+        // Brief tasks must have at least one segment
         if parts.len() < 2 {
             return Err(IdError::InvalidTaskId(s.to_string()));
         }
@@ -340,57 +355,66 @@ mod tests {
     use super::*;
 
     #[test]
-    fn anchor_id_generation_is_unique_for_different_timestamps() {
+    fn brief_id_generation_is_unique_for_different_timestamps() {
         let title = "Same Title";
         let ts1 = Utc::now();
         let ts2 = ts1 + chrono::Duration::nanoseconds(1);
 
-        let id1 = AnchorId::new(title, ts1);
-        let id2 = AnchorId::new(title, ts2);
+        let id1 = BriefId::new(title, ts1);
+        let id2 = BriefId::new(title, ts2);
 
         assert_ne!(id1, id2);
     }
 
     #[test]
-    fn anchor_id_format_is_correct() {
-        let id = AnchorId::new("Test", Utc::now());
+    fn brief_id_format_is_correct() {
+        let id = BriefId::new("Test", Utc::now());
         let s = id.to_string();
 
-        assert!(s.starts_with("a-"));
-        assert_eq!(s.len(), 9); // "a-" + 7 chars
+        assert!(s.starts_with("b-"));
+        assert_eq!(s.len(), 9); // "b-" + 7 chars
     }
 
     #[test]
-    fn anchor_id_parses_correctly() {
-        let original = AnchorId::new("Test", Utc::now());
+    fn brief_id_parses_correctly() {
+        let original = BriefId::new("Test", Utc::now());
         let s = original.to_string();
-        let parsed: AnchorId = s.parse().unwrap();
+        let parsed: BriefId = s.parse().unwrap();
 
         assert_eq!(original, parsed);
     }
 
     #[test]
-    fn anchor_id_rejects_invalid_format() {
-        assert!("invalid".parse::<AnchorId>().is_err());
-        assert!("a-short".parse::<AnchorId>().is_err());
-        assert!("a-toolonggg".parse::<AnchorId>().is_err());
-        assert!("a-gggggg1".parse::<AnchorId>().is_err()); // 'g' is not hex
+    fn brief_id_parses_legacy_format() {
+        // Legacy a- prefix should still work
+        let parsed: BriefId = "a-1234567".parse().unwrap();
+        assert_eq!(parsed.hash(), "1234567");
+        // But when displayed, uses new b- format
+        assert!(parsed.to_string().starts_with("b-"));
+    }
+
+    #[test]
+    fn brief_id_rejects_invalid_format() {
+        assert!("invalid".parse::<BriefId>().is_err());
+        assert!("b-short".parse::<BriefId>().is_err());
+        assert!("b-toolonggg".parse::<BriefId>().is_err());
+        assert!("b-gggggg1".parse::<BriefId>().is_err()); // 'g' is not hex
     }
 
     #[test]
     fn task_id_format_is_correct() {
-        let anchor = AnchorId::new("Test", Utc::now());
-        let task = TaskId::new(&anchor, 1);
+        let brief = BriefId::new("Test", Utc::now());
+        let task = TaskId::new(&brief, 1);
         let s = task.to_string();
 
-        assert!(s.starts_with("a-"));
+        assert!(s.starts_with("b-"));
         assert!(s.ends_with(".1"));
     }
 
     #[test]
     fn task_id_parses_correctly() {
-        let anchor = AnchorId::new("Test", Utc::now());
-        let original = TaskId::new(&anchor, 42);
+        let brief = BriefId::new("Test", Utc::now());
+        let original = TaskId::new(&brief, 42);
         let s = original.to_string();
         let parsed: TaskId = s.parse().unwrap();
 
@@ -398,9 +422,19 @@ mod tests {
     }
 
     #[test]
+    fn task_id_parses_legacy_format() {
+        // Legacy a- prefix should still work
+        let parsed: TaskId = "a-1234567.1".parse().unwrap();
+        assert_eq!(parsed.hash(), "1234567");
+        assert!(!parsed.is_standalone());
+        // But when displayed, uses new b- format
+        assert!(parsed.to_string().starts_with("b-"));
+    }
+
+    #[test]
     fn subtask_id_works() {
-        let anchor = AnchorId::new("Test", Utc::now());
-        let task = TaskId::new(&anchor, 1);
+        let brief = BriefId::new("Test", Utc::now());
+        let task = TaskId::new(&brief, 1);
         let subtask = task.subtask(2);
 
         assert_eq!(subtask.depth(), 2);
@@ -411,7 +445,7 @@ mod tests {
 
     #[test]
     fn task_id_parses_subtasks() {
-        let s = "a-1234567.1.2.3";
+        let s = "b-1234567.1.2.3";
         let task: TaskId = s.parse().unwrap();
 
         assert_eq!(task.segments(), &[1, 2, 3]);
@@ -421,33 +455,33 @@ mod tests {
     #[test]
     fn task_id_rejects_invalid_format() {
         assert!("invalid".parse::<TaskId>().is_err());
-        assert!("a-1234567".parse::<TaskId>().is_err()); // no sequence
-        assert!("a-123456.1".parse::<TaskId>().is_err()); // hash too short
-        assert!("a-1234567.abc".parse::<TaskId>().is_err()); // non-numeric sequence
+        assert!("b-1234567".parse::<TaskId>().is_err()); // no sequence
+        assert!("b-123456.1".parse::<TaskId>().is_err()); // hash too short
+        assert!("b-1234567.abc".parse::<TaskId>().is_err()); // non-numeric sequence
     }
 
     #[test]
-    fn anchor_id_creates_task_id() {
-        let anchor = AnchorId::new("Test", Utc::now());
-        let task = anchor.task_id(5);
+    fn brief_id_creates_task_id() {
+        let brief = BriefId::new("Test", Utc::now());
+        let task = brief.task_id(5);
 
-        assert_eq!(task.anchor_id(), Some(anchor));
+        assert_eq!(task.brief_id(), Some(brief));
         assert_eq!(task.segments(), &[5]);
     }
 
     #[test]
-    fn serde_roundtrip_anchor_id() {
-        let original = AnchorId::new("Test", Utc::now());
+    fn serde_roundtrip_brief_id() {
+        let original = BriefId::new("Test", Utc::now());
         let json = serde_json::to_string(&original).unwrap();
-        let parsed: AnchorId = serde_json::from_str(&json).unwrap();
+        let parsed: BriefId = serde_json::from_str(&json).unwrap();
 
         assert_eq!(original, parsed);
     }
 
     #[test]
     fn serde_roundtrip_task_id() {
-        let anchor = AnchorId::new("Test", Utc::now());
-        let original = TaskId::new(&anchor, 1).subtask(2);
+        let brief = BriefId::new("Test", Utc::now());
+        let original = TaskId::new(&brief, 1).subtask(2);
         let json = serde_json::to_string(&original).unwrap();
         let parsed: TaskId = serde_json::from_str(&json).unwrap();
 
@@ -464,7 +498,7 @@ mod tests {
         let id = TaskId::new_standalone("Fix typo", ts);
 
         assert!(id.is_standalone());
-        assert!(id.anchor_id().is_none());
+        assert!(id.brief_id().is_none());
         assert!(id.segments().is_empty());
         assert_eq!(id.depth(), 0);
         assert!(!id.is_subtask());
@@ -486,7 +520,7 @@ mod tests {
         let task: TaskId = s.parse().unwrap();
 
         assert!(task.is_standalone());
-        assert!(task.anchor_id().is_none());
+        assert!(task.brief_id().is_none());
         assert!(task.segments().is_empty());
     }
 
@@ -577,16 +611,16 @@ mod tests {
     }
 
     #[test]
-    fn anchored_vs_standalone_are_different() {
-        let anchor = AnchorId::new("Test", Utc::now());
-        let anchored = TaskId::new(&anchor, 1);
+    fn brief_vs_standalone_are_different() {
+        let brief = BriefId::new("Test", Utc::now());
+        let brief_task = TaskId::new(&brief, 1);
 
         let ts = Utc::now();
         let standalone = TaskId::new_standalone("Test", ts);
 
-        assert!(!anchored.is_standalone());
+        assert!(!brief_task.is_standalone());
         assert!(standalone.is_standalone());
-        assert!(anchored.anchor_id().is_some());
-        assert!(standalone.anchor_id().is_none());
+        assert!(brief_task.brief_id().is_some());
+        assert!(standalone.brief_id().is_none());
     }
 }

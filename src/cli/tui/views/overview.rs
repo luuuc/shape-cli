@@ -7,7 +7,7 @@ use ratatui::{
 
 use crate::cli::tui::app::{App, Focus, InputMode};
 use crate::cli::tui::utils::truncate_str;
-use crate::domain::{AnchorStatus, TaskStatus};
+use crate::domain::{BriefStatus, TaskStatus};
 
 /// Draw the overview layout
 pub fn draw(frame: &mut Frame, app: &App) {
@@ -39,23 +39,23 @@ pub fn draw(frame: &mut Frame, app: &App) {
     draw_status_bar(frame, app, main_chunks[1]);
 }
 
-/// Draw the briefs (anchors) panel
+/// Draw the briefs panel
 fn draw_briefs_panel(frame: &mut Frame, app: &App, area: Rect) {
     let focused = app.focus() == Focus::Briefs;
 
     let items: Vec<ListItem> = app
-        .anchor_list()
+        .brief_list()
         .iter()
         .map(|id| {
-            let anchor = app.anchors().get(id);
-            let (title, status_indicator) = match anchor {
+            let brief = app.briefs().get(id);
+            let (title, status_indicator) = match brief {
                 Some(a) => {
                     let indicator = match a.status {
-                        AnchorStatus::InProgress => "[IP]",
-                        AnchorStatus::Proposed => "[PROP]",
-                        AnchorStatus::Betting => "[BET]",
-                        AnchorStatus::Shipped => "[DONE]",
-                        AnchorStatus::Archived => "[ARCH]",
+                        BriefStatus::InProgress => "[IP]",
+                        BriefStatus::Proposed => "[PROP]",
+                        BriefStatus::Betting => "[BET]",
+                        BriefStatus::Shipped => "[DONE]",
+                        BriefStatus::Archived => "[ARCH]",
                     };
                     (a.title.clone(), indicator)
                 }
@@ -88,7 +88,7 @@ fn draw_briefs_panel(frame: &mut Frame, app: &App, area: Rect) {
         .highlight_symbol("> ");
 
     let mut state = ListState::default();
-    state.select(Some(app.anchor_index()));
+    state.select(Some(app.brief_index()));
 
     frame.render_stateful_widget(list, area, &mut state);
 }
@@ -241,8 +241,8 @@ fn draw_details_panel(frame: &mut Frame, app: &App, area: Rect) {
             TaskStatus::Done => "done",
         };
 
-        let anchor_str = task
-            .anchor_id()
+        let brief_str = task
+            .brief_id()
             .map(|id| id.to_string())
             .unwrap_or_else(|| "standalone".to_string());
 
@@ -267,7 +267,7 @@ fn draw_details_panel(frame: &mut Frame, app: &App, area: Rect) {
             format!("Task: {}", task.id),
             format!("Title: {}", task.title),
             format!("Status: {}", status_str),
-            format!("Brief: {}", anchor_str),
+            format!("Brief: {}", brief_str),
             format!("Created: {}", created),
             format!("Dependencies: {}", deps_str),
             String::new(),
@@ -279,22 +279,22 @@ fn draw_details_panel(frame: &mut Frame, app: &App, area: Rect) {
         }
 
         lines.join("\n")
-    } else if let Some(anchor) = app.selected_anchor() {
-        let status_str = anchor.status.to_string();
-        let created = anchor.created_at.format("%Y-%m-%d").to_string();
+    } else if let Some(brief) = app.selected_brief() {
+        let status_str = brief.status.to_string();
+        let created = brief.created_at.format("%Y-%m-%d").to_string();
 
         let mut lines = vec![
-            format!("Brief: {}", anchor.id),
-            format!("Title: {}", anchor.title),
-            format!("Type: {}", anchor.anchor_type),
+            format!("Brief: {}", brief.id),
+            format!("Title: {}", brief.title),
+            format!("Type: {}", brief.brief_type),
             format!("Status: {}", status_str),
             format!("Created: {}", created),
             String::new(),
         ];
 
-        if !anchor.body.is_empty() {
+        if !brief.body.is_empty() {
             // Show first few lines of body
-            let body_preview: String = anchor.body
+            let body_preview: String = brief.body
                 .lines()
                 .take(10)
                 .collect::<Vec<_>>()

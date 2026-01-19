@@ -1,7 +1,7 @@
 //! SQLite cache for fast queries
 //!
 //! The cache sits in `.shape/.cache/shape.db` and mirrors data from
-//! the source-of-truth files (tasks.jsonl and anchors/*.md).
+//! the source-of-truth files (tasks.jsonl and briefs/*.md).
 //! Cache invalidation is based on file modification times.
 
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ use anyhow::{Context, Result};
 use rusqlite::{params, Connection, OptionalExtension};
 use thiserror::Error;
 
-use crate::domain::{Anchor, AnchorId, Task, TaskId, TaskStatus};
+use crate::domain::{Brief, BriefId, Task, TaskId, TaskStatus};
 
 #[derive(Debug, Error)]
 pub enum CacheError {
@@ -38,8 +38,8 @@ pub struct Cache {
     /// Path to the tasks.jsonl file (for mtime comparison)
     tasks_path: PathBuf,
 
-    /// Path to the anchors directory (for mtime comparison)
-    anchors_dir: PathBuf,
+    /// Path to the briefs directory (for mtime comparison)
+    briefs_dir: PathBuf,
 
     /// Database connection
     conn: Connection,
@@ -55,7 +55,7 @@ impl Cache {
         let cache_dir = shape_dir.join(".cache");
         let db_path = cache_dir.join("shape.db");
         let tasks_path = shape_dir.join("tasks.jsonl");
-        let anchors_dir = shape_dir.join("anchors");
+        let briefs_dir = shape_dir.join("briefs");
 
         // Ensure cache directory exists
         fs::create_dir_all(&cache_dir).with_context(|| {
@@ -71,7 +71,7 @@ impl Cache {
         let mut cache = Self {
             db_path,
             tasks_path,
-            anchors_dir,
+            briefs_dir,
             conn,
         };
 
@@ -121,7 +121,7 @@ impl Cache {
             "
             CREATE TABLE tasks (
                 id TEXT PRIMARY KEY,
-                anchor_id TEXT,
+                brief_id TEXT,
                 title TEXT NOT NULL,
                 status TEXT NOT NULL,
                 created_at TEXT NOT NULL,
@@ -154,7 +154,7 @@ impl Cache {
                 value TEXT NOT NULL
             );
 
-            CREATE INDEX idx_tasks_anchor ON tasks(anchor_id);
+            CREATE INDEX idx_tasks_brief ON tasks(brief_id);
             CREATE INDEX idx_tasks_status ON tasks(status);
             CREATE INDEX idx_deps_blocked ON dependencies(depends_on_id);
             CREATE INDEX idx_briefs_status ON briefs(status);
@@ -234,9 +234,9 @@ impl Cache {
             }
         }
 
-        // Check any anchor file
-        if self.anchors_dir.exists() {
-            for entry in fs::read_dir(&self.anchors_dir)? {
+        // Check any brief file
+        if self.briefs_dir.exists() {
+            for entry in fs::read_dir(&self.briefs_dir)? {
                 let entry = entry?;
                 let path = entry.path();
                 if path.extension().is_some_and(|e| e == "md") {
@@ -293,7 +293,7 @@ impl Cache {
     pub fn rebuild(
         &mut self,
         tasks: &HashMap<TaskId, Task>,
-        anchors: &HashMap<AnchorId, Anchor>,
+        briefs: &HashMap<BriefId, Brief>,
     ) -> Result<()> {
         let tx = self.conn.transaction()?;
 
@@ -305,12 +305,12 @@ impl Cache {
         // Insert tasks
         {
             let mut stmt = tx.prepare(
-                "INSERT INTO tasks (id, anchor_id, title, status, created_at, updated_at, completed_at, description, meta, depends_on)
+                "INSERT INTO tasks (id, brief_id, title, status, created_at, updated_at, completed_at, description, meta, depends_on)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             )?;
 
             for task in tasks.values() {
-                let anchor_id = task.anchor_id().map(|a| a.to_string());
+                let brief_id = task.brief_id().map(|a| a.to_string());
                 let status = match task.status {
                     TaskStatus::Todo => "todo",
                     TaskStatus::InProgress => "in_progress",
@@ -331,7 +331,7 @@ impl Cache {
 
                 stmt.execute(params![
                     task.id.to_string(),
-                    anchor_id,
+                    brief_id,
                     task.title,
                     status,
                     task.created_at.to_rfc3339(),
@@ -356,26 +356,26 @@ impl Cache {
             }
         }
 
-        // Insert briefs (anchors)
+        // Insert briefs (briefs)
         {
             let mut stmt = tx.prepare(
                 "INSERT INTO briefs (id, title, brief_type, status, created_at, updated_at, file_path, body)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             )?;
 
-            for anchor in anchors.values() {
-                let status = anchor.status.to_string();
-                let file_path = format!("{}.md", anchor.id);
+            for brief in briefs.values() {
+                let status = brief.status.to_string();
+                let file_path = format!("{}.md", brief.id);
 
                 stmt.execute(params![
-                    anchor.id.to_string(),
-                    anchor.title,
-                    anchor.anchor_type,
+                    brief.id.to_string(),
+                    brief.title,
+                    brief.brief_type,
                     status,
-                    anchor.created_at.to_rfc3339(),
-                    anchor.updated_at.to_rfc3339(),
+                    brief.created_at.to_rfc3339(),
+                    brief.updated_at.to_rfc3339(),
                     file_path,
-                    anchor.body,
+                    brief.body,
                 ])?;
             }
         }
@@ -405,13 +405,13 @@ impl Cache {
         Ok(ids)
     }
 
-    /// Query: Get all tasks for an anchor
-    pub fn tasks_for_anchor(&self, anchor_id: &str) -> Result<Vec<String>> {
+    /// Query: Get all tasks for a brief
+    pub fn tasks_for_brief(&self, brief_id: &str) -> Result<Vec<String>> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id FROM tasks WHERE anchor_id = ?1")?;
+            .prepare("SELECT id FROM tasks WHERE brief_id = ?1")?;
         let ids: Vec<String> = stmt
-            .query_map(params![anchor_id], |row| row.get(0))?
+            .query_map(params![brief_id], |row| row.get(0))?
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(ids)
@@ -421,7 +421,7 @@ impl Cache {
     pub fn standalone_tasks(&self) -> Result<Vec<String>> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id FROM tasks WHERE anchor_id IS NULL")?;
+            .prepare("SELECT id FROM tasks WHERE brief_id IS NULL")?;
         let ids: Vec<String> = stmt
             .query_map([], |row| row.get(0))?
             .collect::<Result<Vec<_>, _>>()?;
@@ -452,8 +452,8 @@ impl Cache {
         Ok((todo as usize, in_progress as usize, done as usize))
     }
 
-    /// Query: Get anchor counts by status
-    pub fn anchor_counts(&self) -> Result<HashMap<String, usize>> {
+    /// Query: Get brief counts by status
+    pub fn brief_counts(&self) -> Result<HashMap<String, usize>> {
         let mut stmt = self
             .conn
             .prepare("SELECT status, COUNT(*) FROM briefs GROUP BY status")?;
@@ -512,7 +512,7 @@ impl Cache {
     /// Query: Get ready task IDs with details
     pub fn ready_tasks_detailed(&self) -> Result<Vec<CachedTask>> {
         let mut stmt = self.conn.prepare(
-            "SELECT t.id, t.anchor_id, t.title, t.status, t.description
+            "SELECT t.id, t.brief_id, t.title, t.status, t.description
              FROM tasks t
              WHERE t.status != 'done'
              AND NOT EXISTS (
@@ -527,7 +527,7 @@ impl Cache {
             .query_map([], |row| {
                 Ok(CachedTask {
                     id: row.get(0)?,
-                    anchor_id: row.get(1)?,
+                    brief_id: row.get(1)?,
                     title: row.get(2)?,
                     status: row.get(3)?,
                     description: row.get(4)?,
@@ -538,12 +538,12 @@ impl Cache {
         Ok(tasks)
     }
 
-    /// Query: Get ready tasks filtered by anchor
-    pub fn ready_tasks_for_anchor(&self, anchor_id: &str) -> Result<Vec<CachedTask>> {
+    /// Query: Get ready tasks filtered by brief
+    pub fn ready_tasks_for_brief(&self, brief_id: &str) -> Result<Vec<CachedTask>> {
         let mut stmt = self.conn.prepare(
-            "SELECT t.id, t.anchor_id, t.title, t.status, t.description
+            "SELECT t.id, t.brief_id, t.title, t.status, t.description
              FROM tasks t
-             WHERE t.anchor_id = ?1
+             WHERE t.brief_id = ?1
              AND t.status != 'done'
              AND NOT EXISTS (
                  SELECT 1 FROM dependencies d
@@ -554,10 +554,10 @@ impl Cache {
         )?;
 
         let tasks = stmt
-            .query_map(params![anchor_id], |row| {
+            .query_map(params![brief_id], |row| {
                 Ok(CachedTask {
                     id: row.get(0)?,
-                    anchor_id: row.get(1)?,
+                    brief_id: row.get(1)?,
                     title: row.get(2)?,
                     status: row.get(3)?,
                     description: row.get(4)?,
@@ -571,7 +571,7 @@ impl Cache {
     /// Query: Get blocked tasks with what they're blocked by
     pub fn blocked_tasks_detailed(&self) -> Result<Vec<(CachedTask, Vec<String>)>> {
         let mut stmt = self.conn.prepare(
-            "SELECT DISTINCT t.id, t.anchor_id, t.title, t.status, t.description
+            "SELECT DISTINCT t.id, t.brief_id, t.title, t.status, t.description
              FROM tasks t
              JOIN dependencies d ON d.task_id = t.id
              JOIN tasks dep ON d.depends_on_id = dep.id
@@ -583,7 +583,7 @@ impl Cache {
             .query_map([], |row| {
                 Ok(CachedTask {
                     id: row.get(0)?,
-                    anchor_id: row.get(1)?,
+                    brief_id: row.get(1)?,
                     title: row.get(2)?,
                     status: row.get(3)?,
                     description: row.get(4)?,
@@ -610,26 +610,26 @@ impl Cache {
         Ok(result)
     }
 
-    /// Query: Get blocked tasks filtered by anchor
-    pub fn blocked_tasks_for_anchor(
+    /// Query: Get blocked tasks filtered by brief
+    pub fn blocked_tasks_for_brief(
         &self,
-        anchor_id: &str,
+        brief_id: &str,
     ) -> Result<Vec<(CachedTask, Vec<String>)>> {
         let mut stmt = self.conn.prepare(
-            "SELECT DISTINCT t.id, t.anchor_id, t.title, t.status, t.description
+            "SELECT DISTINCT t.id, t.brief_id, t.title, t.status, t.description
              FROM tasks t
              JOIN dependencies d ON d.task_id = t.id
              JOIN tasks dep ON d.depends_on_id = dep.id
-             WHERE t.anchor_id = ?1
+             WHERE t.brief_id = ?1
              AND t.status != 'done'
              AND dep.status != 'done'",
         )?;
 
         let tasks: Vec<CachedTask> = stmt
-            .query_map(params![anchor_id], |row| {
+            .query_map(params![brief_id], |row| {
                 Ok(CachedTask {
                     id: row.get(0)?,
-                    anchor_id: row.get(1)?,
+                    brief_id: row.get(1)?,
                     title: row.get(2)?,
                     status: row.get(3)?,
                     description: row.get(4)?,
@@ -658,19 +658,19 @@ impl Cache {
     /// Query: Get standalone task counts
     pub fn standalone_task_counts(&self) -> Result<(usize, usize, usize)> {
         let todo: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM tasks WHERE anchor_id IS NULL AND status = 'todo'",
+            "SELECT COUNT(*) FROM tasks WHERE brief_id IS NULL AND status = 'todo'",
             [],
             |row| row.get(0),
         )?;
 
         let in_progress: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM tasks WHERE anchor_id IS NULL AND status = 'in_progress'",
+            "SELECT COUNT(*) FROM tasks WHERE brief_id IS NULL AND status = 'in_progress'",
             [],
             |row| row.get(0),
         )?;
 
         let done: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM tasks WHERE anchor_id IS NULL AND status = 'done'",
+            "SELECT COUNT(*) FROM tasks WHERE brief_id IS NULL AND status = 'done'",
             [],
             |row| row.get(0),
         )?;
@@ -678,15 +678,15 @@ impl Cache {
         Ok((todo as usize, in_progress as usize, done as usize))
     }
 
-    /// Query: List all anchors with basic info
-    pub fn list_anchors(&self) -> Result<Vec<CachedAnchor>> {
+    /// Query: List all briefs with basic info
+    pub fn list_briefs(&self) -> Result<Vec<CachedBrief>> {
         let mut stmt = self
             .conn
             .prepare("SELECT id, title, brief_type, status FROM briefs ORDER BY id")?;
 
-        let anchors = stmt
+        let briefs = stmt
             .query_map([], |row| {
-                Ok(CachedAnchor {
+                Ok(CachedBrief {
                     id: row.get(0)?,
                     title: row.get(1)?,
                     brief_type: row.get(2)?,
@@ -695,7 +695,7 @@ impl Cache {
             })?
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(anchors)
+        Ok(briefs)
     }
 
     /// Query: Full-text search across tasks and briefs
@@ -775,7 +775,7 @@ pub enum SearchResultType {
 #[derive(Debug, Clone)]
 pub struct CachedTask {
     pub id: String,
-    pub anchor_id: Option<String>,
+    pub brief_id: Option<String>,
     pub title: String,
     pub status: String,
     pub description: Option<String>,
@@ -784,26 +784,26 @@ pub struct CachedTask {
 impl CachedTask {
     /// Returns true if this is a standalone task
     pub fn is_standalone(&self) -> bool {
-        self.anchor_id.is_none()
+        self.brief_id.is_none()
     }
 }
 
-/// Cached anchor information for quick queries
+/// Cached brief information for quick queries
 #[derive(Debug, Clone)]
-pub struct CachedAnchor {
+pub struct CachedBrief {
     pub id: String,
     pub title: String,
     pub brief_type: String,
     pub status: String,
 }
 
-impl CachedAnchor {
-    /// Returns true if this anchor is active
+impl CachedBrief {
+    /// Returns true if this brief is active
     pub fn is_active(&self) -> bool {
         self.status == "in_progress"
     }
 
-    /// Returns true if this anchor is complete
+    /// Returns true if this brief is complete
     pub fn is_complete(&self) -> bool {
         self.status == "shipped" || self.status == "archived"
     }
@@ -812,7 +812,7 @@ impl CachedAnchor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::AnchorStatus;
+    use crate::domain::BriefStatus;
     use chrono::Utc;
     use tempfile::TempDir;
 
@@ -821,14 +821,14 @@ mod tests {
         let project_root = dir.path().to_path_buf();
 
         // Create .shape directory
-        fs::create_dir_all(project_root.join(".shape").join("anchors")).unwrap();
+        fs::create_dir_all(project_root.join(".shape").join("briefs")).unwrap();
 
         (dir, project_root)
     }
 
     fn make_task(seq: u32, title: &str) -> Task {
-        let anchor = AnchorId::new("Test", Utc::now());
-        let task_id = TaskId::new(&anchor, seq);
+        let brief = BriefId::new("Test", Utc::now());
+        let task_id = TaskId::new(&brief, seq);
         Task::new(task_id, title)
     }
 
@@ -851,9 +851,9 @@ mod tests {
         tasks.insert(task1.id.clone(), task1);
         tasks.insert(task2.id.clone(), task2);
 
-        let anchors = HashMap::new();
+        let briefs = HashMap::new();
 
-        cache.rebuild(&tasks, &anchors).unwrap();
+        cache.rebuild(&tasks, &briefs).unwrap();
 
         // Query tasks
         let (todo, in_progress, done) = cache.task_counts().unwrap();
@@ -913,20 +913,20 @@ mod tests {
     }
 
     #[test]
-    fn test_anchor_storage() {
+    fn test_brief_storage() {
         let (_dir, project_root) = setup_project();
         let mut cache = Cache::open(&project_root).unwrap();
 
-        let mut anchor = Anchor::new("Test Pitch", "shapeup");
-        anchor.set_body("This is the problem statement.");
-        anchor.set_status(AnchorStatus::InProgress);
+        let mut brief = Brief::new("Test Pitch", "shapeup");
+        brief.set_body("This is the problem statement.");
+        brief.set_status(BriefStatus::InProgress);
 
-        let mut anchors = HashMap::new();
-        anchors.insert(anchor.id.clone(), anchor);
+        let mut briefs = HashMap::new();
+        briefs.insert(brief.id.clone(), brief);
 
-        cache.rebuild(&HashMap::new(), &anchors).unwrap();
+        cache.rebuild(&HashMap::new(), &briefs).unwrap();
 
-        let counts = cache.anchor_counts().unwrap();
+        let counts = cache.brief_counts().unwrap();
         assert_eq!(counts.get("in_progress"), Some(&1));
     }
 

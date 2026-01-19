@@ -4,24 +4,24 @@
 //!
 //! ## Overview
 //!
-//! Shape organizes work around **anchors** (documents like pitches, RFCs, PRDs)
+//! Shape organizes work around **briefs** (documents like pitches, RFCs, PRDs)
 //! with dependent **tasks**. The core insight is that documents drive work —
-//! the "why" (anchor) should live alongside the "what" (tasks).
+//! the "why" (brief) should live alongside the "what" (tasks).
 //!
 //! ## Architecture
 //!
 //! The crate is organized into four main modules:
 //!
-//! - [`domain`] - Core business logic: Anchors, Tasks, IDs, and the dependency graph
-//! - [`storage`] - Persistence layer: Markdown files for anchors, JSONL for tasks
-//! - [`plugin`] - Extensibility: Custom anchor types and external tool sync
+//! - [`domain`] - Core business logic: Briefs, Tasks, IDs, and the dependency graph
+//! - [`storage`] - Persistence layer: Markdown files for briefs, JSONL for tasks
+//! - [`plugin`] - Extensibility: Custom brief types and external tool sync
 //! - [`cli`] - Command-line interface and output formatting
 //!
 //! ## Data Flow
 //!
 //! ```text
 //! ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-//! │   Anchor    │────▶│    Task     │────▶│  External   │
+//! │    Brief    │────▶│    Task     │────▶│  External   │
 //! │  (Markdown) │     │   (JSONL)   │     │   (Plugin)  │
 //! └─────────────┘     └─────────────┘     └─────────────┘
 //!       │                   │
@@ -40,7 +40,7 @@
 //!
 //! ## Storage Format
 //!
-//! - **Anchors**: Markdown files with YAML frontmatter in `.shape/anchors/`
+//! - **Briefs**: Markdown files with YAML frontmatter in `.shape/briefs/`
 //! - **Tasks**: JSONL (one JSON object per line) in `.shape/tasks.jsonl`
 //! - **Config**: TOML in `.shape/config.toml`
 //!
@@ -50,15 +50,15 @@
 //! # Initialize a project
 //! shape init
 //!
-//! # Create an anchor (pitch, RFC, etc.)
-//! shape anchor new "User Authentication" --type shapeup
+//! # Create a brief (pitch, RFC, etc.)
+//! shape brief new "User Authentication" --type shapeup
 //!
-//! # Add tasks to the anchor
-//! shape task add a-1234567 "Implement OAuth2"
-//! shape task add a-1234567 "Write integration tests"
+//! # Add tasks to the brief
+//! shape task add b-1234567 "Implement OAuth2"
+//! shape task add b-1234567 "Write integration tests"
 //!
 //! # Set up dependencies
-//! shape task dep a-1234567.2 a-1234567.1
+//! shape task dep b-1234567.2 b-1234567.1
 //!
 //! # See what's ready to work on
 //! shape ready
@@ -70,13 +70,13 @@
 //! ## Design Principles
 //!
 //! 1. **Local-first**: All data stored in git-friendly formats
-//! 2. **Human-editable**: Anchors are markdown files you can edit directly
+//! 2. **Human-editable**: Briefs are markdown files you can edit directly
 //! 3. **AI-optimized**: Context export designed for minimal tokens
-//! 4. **Extensible**: Plugin system for custom anchor types and sync
+//! 4. **Extensible**: Plugin system for custom brief types and sync
 
 pub mod cli;
 pub mod domain;
 pub mod plugin;
 pub mod storage;
 
-pub use domain::{Anchor, AnchorId, AnchorStatus, Task, TaskId, TaskStatus};
+pub use domain::{Brief, BriefId, BriefStatus, Task, TaskId, TaskStatus};

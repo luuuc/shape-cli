@@ -6,14 +6,14 @@ use anyhow::Result;
 use chrono::{Duration, Utc};
 
 use super::output::Output;
-use crate::domain::{AnchorId, DependencyGraph, TaskId, TaskStatus};
+use crate::domain::{BriefId, DependencyGraph, TaskId, TaskStatus};
 use crate::storage::Project;
 
 /// Export project context for AI consumption
 pub fn export(
     output: &Output,
     compact: bool,
-    anchor_filter: Option<&str>,
+    brief_filter: Option<&str>,
     days: u32,
 ) -> Result<()> {
     let project = Project::open_current()?;
@@ -22,42 +22,42 @@ pub fn export(
         &format!("Opened project at: {}", project.root().display()),
     );
 
-    let anchor_store = project.anchor_store();
+    let brief_store = project.brief_store();
     let task_store = project.task_store();
 
-    let anchors = anchor_store.read_all()?;
+    let briefs = brief_store.read_all()?;
     let tasks = task_store.read_all()?;
 
     output.verbose_ctx(
         "context",
-        &format!("Loaded {} anchors, {} tasks", anchors.len(), tasks.len()),
+        &format!("Loaded {} briefs, {} tasks", briefs.len(), tasks.len()),
     );
 
-    // Filter by anchor if specified
-    let (anchors, tasks) = if let Some(anchor_str) = anchor_filter {
-        let anchor_id: AnchorId = anchor_str.parse()?;
-        output.verbose_ctx("context", &format!("Filtering by anchor: {}", anchor_id));
+    // Filter by brief if specified
+    let (briefs, tasks) = if let Some(brief_str) = brief_filter {
+        let brief_id: BriefId = brief_str.parse()?;
+        output.verbose_ctx("context", &format!("Filtering by brief: {}", brief_id));
 
-        let anchor = anchors
-            .get(&anchor_id)
-            .ok_or_else(|| anyhow::anyhow!("Anchor not found: {}", anchor_id))?;
+        let brief = briefs
+            .get(&brief_id)
+            .ok_or_else(|| anyhow::anyhow!("Brief not found: {}", brief_id))?;
 
         let filtered_tasks: HashMap<_, _> = tasks
             .into_iter()
-            .filter(|(_, t)| t.anchor_id().as_ref() == Some(&anchor_id))
+            .filter(|(_, t)| t.brief_id().as_ref() == Some(&brief_id))
             .collect();
 
         output.verbose_ctx(
             "context",
-            &format!("Filtered to {} tasks for anchor", filtered_tasks.len()),
+            &format!("Filtered to {} tasks for brief", filtered_tasks.len()),
         );
 
-        let mut filtered_anchors = HashMap::new();
-        filtered_anchors.insert(anchor_id.clone(), anchor.clone());
+        let mut filtered_briefs = HashMap::new();
+        filtered_briefs.insert(brief_id.clone(), brief.clone());
 
-        (filtered_anchors, filtered_tasks)
+        (filtered_briefs, filtered_tasks)
     } else {
-        (anchors, tasks)
+        (briefs, tasks)
     };
 
     // Build status map
@@ -104,7 +104,7 @@ pub fn export(
         // Compact format - minimal tokens
         export_compact(
             output,
-            &anchors,
+            &briefs,
             &tasks,
             &ready_ids,
             &blocked_ids,
@@ -117,7 +117,7 @@ pub fn export(
         // Full format
         export_full(
             output,
-            &anchors,
+            &briefs,
             &tasks,
             &ready_ids,
             &blocked_ids,
@@ -133,7 +133,7 @@ pub fn export(
 #[allow(clippy::too_many_arguments)]
 fn export_compact(
     output: &Output,
-    anchors: &HashMap<AnchorId, crate::domain::Anchor>,
+    briefs: &HashMap<BriefId, crate::domain::Brief>,
     tasks: &HashMap<TaskId, crate::domain::Task>,
     ready_ids: &[TaskId],
     blocked_ids: &[TaskId],
@@ -166,11 +166,11 @@ fn export_compact(
 
     // Compact format: optimized for token efficiency
     let context = serde_json::json!({
-        "anchors": anchors.values().map(|a| {
+        "briefs": briefs.values().map(|b| {
             serde_json::json!({
-                "id": a.id.to_string(),
-                "title": a.title,
-                "status": a.status,
+                "id": b.id.to_string(),
+                "title": b.title,
+                "status": b.status,
             })
         }).collect::<Vec<_>>(),
 
@@ -216,7 +216,7 @@ fn export_compact(
 #[allow(clippy::too_many_arguments)]
 fn export_full(
     output: &Output,
-    anchors: &HashMap<AnchorId, crate::domain::Anchor>,
+    briefs: &HashMap<BriefId, crate::domain::Brief>,
     tasks: &HashMap<TaskId, crate::domain::Task>,
     ready_ids: &[TaskId],
     blocked_ids: &[TaskId],
@@ -290,18 +290,18 @@ fn export_full(
 
     // Full format: more detail for comprehensive understanding
     let context = serde_json::json!({
-        "anchors": anchors.values().map(|a| {
+        "briefs": briefs.values().map(|b| {
             serde_json::json!({
-                "id": a.id.to_string(),
-                "title": a.title,
-                "type": a.anchor_type,
-                "status": a.status,
-                "body": if a.body.len() > 500 {
-                    format!("{}...", &a.body[..500])
+                "id": b.id.to_string(),
+                "title": b.title,
+                "type": b.brief_type,
+                "status": b.status,
+                "body": if b.body.len() > 500 {
+                    format!("{}...", &b.body[..500])
                 } else {
-                    a.body.clone()
+                    b.body.clone()
                 },
-                "meta": a.meta,
+                "meta": b.meta,
             })
         }).collect::<Vec<_>>(),
 
@@ -312,7 +312,7 @@ fn export_full(
                         "id": t.id.to_string(),
                         "title": t.title,
                         "standalone": t.is_standalone(),
-                        "anchor": t.anchor_id().map(|a| a.to_string()),
+                        "brief": t.brief_id().map(|a| a.to_string()),
                         "description": t.description,
                         "meta": t.meta,
                     })
@@ -324,7 +324,7 @@ fn export_full(
                     "id": t.id.to_string(),
                     "title": t.title,
                     "standalone": t.is_standalone(),
-                    "anchor": t.anchor_id().map(|a| a.to_string()),
+                    "brief": t.brief_id().map(|a| a.to_string()),
                     "started_at": t.updated_at,
                     "description": t.description,
                     "meta": t.meta,
@@ -351,7 +351,7 @@ fn export_full(
                         "id": t.id.to_string(),
                         "title": t.title,
                         "standalone": t.is_standalone(),
-                        "anchor": t.anchor_id().map(|a| a.to_string()),
+                        "brief": t.brief_id().map(|a| a.to_string()),
                         "blocked_by": blocking,
                     })
                 })
@@ -362,7 +362,7 @@ fn export_full(
                     "id": t.id.to_string(),
                     "title": t.title,
                     "standalone": t.is_standalone(),
-                    "anchor": t.anchor_id().map(|a| a.to_string()),
+                    "brief": t.brief_id().map(|a| a.to_string()),
                     "completed_at": t.completed_at,
                 })
             }).collect::<Vec<_>>(),
@@ -373,7 +373,7 @@ fn export_full(
                     "summary": t.summary.clone().unwrap_or_default(),
                     "task_count": t.compacted_count(),
                     "task_ids": t.compacted_tasks.clone().unwrap_or_default().iter().map(|id| id.to_string()).collect::<Vec<_>>(),
-                    "anchor": t.anchor_id().map(|a| a.to_string()),
+                    "brief": t.brief_id().map(|a| a.to_string()),
                     "completed_at": t.completed_at,
                 })
             }).collect::<Vec<_>>(),
@@ -386,7 +386,7 @@ fn export_full(
         },
 
         "summary": {
-            "total_anchors": anchors.len(),
+            "total_briefs": briefs.len(),
             "total_tasks": tasks.len(),
             "standalone_tasks": standalone_tasks.len(),
             "ready_count": ready_ids.len(),

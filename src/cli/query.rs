@@ -8,7 +8,7 @@ use super::output::Output;
 use crate::storage::Project;
 
 /// Show tasks ready to work on
-pub fn ready(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
+pub fn ready(output: &Output, brief_filter: Option<&str>) -> Result<()> {
     let project = Project::open_current()?;
     output.verbose_ctx(
         "ready",
@@ -20,9 +20,9 @@ pub fn ready(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
     output.verbose_ctx("ready", "Using SQLite cache for query");
 
     // Get ready tasks
-    let ready_tasks = if let Some(anchor_str) = anchor_filter {
-        output.verbose_ctx("ready", &format!("Filtering by anchor: {}", anchor_str));
-        cache.ready_tasks_for_anchor(anchor_str)?
+    let ready_tasks = if let Some(brief_str) = brief_filter {
+        output.verbose_ctx("ready", &format!("Filtering by brief: {}", brief_str));
+        cache.ready_tasks_for_brief(brief_str)?
     } else {
         cache.ready_tasks_detailed()?
     };
@@ -37,7 +37,7 @@ pub fn ready(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
                     "id": t.id,
                     "title": t.title,
                     "standalone": t.is_standalone(),
-                    "anchor_id": t.anchor_id,
+                    "brief_id": t.brief_id,
                 })
             })
             .collect();
@@ -57,7 +57,7 @@ pub fn ready(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
 }
 
 /// Show blocked tasks
-pub fn blocked(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
+pub fn blocked(output: &Output, brief_filter: Option<&str>) -> Result<()> {
     let project = Project::open_current()?;
     output.verbose_ctx(
         "blocked",
@@ -69,9 +69,9 @@ pub fn blocked(output: &Output, anchor_filter: Option<&str>) -> Result<()> {
     output.verbose_ctx("blocked", "Using SQLite cache for query");
 
     // Get blocked tasks
-    let blocked_tasks = if let Some(anchor_str) = anchor_filter {
-        output.verbose_ctx("blocked", &format!("Filtering by anchor: {}", anchor_str));
-        cache.blocked_tasks_for_anchor(anchor_str)?
+    let blocked_tasks = if let Some(brief_str) = brief_filter {
+        output.verbose_ctx("blocked", &format!("Filtering by brief: {}", brief_str));
+        cache.blocked_tasks_for_brief(brief_str)?
     } else {
         cache.blocked_tasks_detailed()?
     };
@@ -127,17 +127,17 @@ pub fn status(output: &Output) -> Result<()> {
     let ready_count = cache.ready_task_ids()?.len();
     let blocked_count = cache.blocked_task_ids()?.len();
 
-    // Get anchor info from cache
-    let anchors = cache.list_anchors()?;
-    let active_anchors = anchors.iter().filter(|a| a.is_active()).count();
-    let complete_anchors = anchors.iter().filter(|a| a.is_complete()).count();
+    // Get brief info from cache
+    let briefs = cache.list_briefs()?;
+    let active_briefs = briefs.iter().filter(|a| a.is_active()).count();
+    let complete_briefs = briefs.iter().filter(|a| a.is_complete()).count();
 
     if output.is_json() {
         output.data(&serde_json::json!({
-            "anchors": {
-                "total": anchors.len(),
-                "active": active_anchors,
-                "complete": complete_anchors,
+            "briefs": {
+                "total": briefs.len(),
+                "active": active_briefs,
+                "complete": complete_briefs,
             },
             "tasks": {
                 "total": total_tasks,
@@ -159,10 +159,10 @@ pub fn status(output: &Output) -> Result<()> {
         println!("{}", "=".repeat(40));
         println!();
         println!(
-            "Anchors: {} total ({} active, {} complete)",
-            anchors.len(),
-            active_anchors,
-            complete_anchors
+            "Briefs: {} total ({} active, {} complete)",
+            briefs.len(),
+            active_briefs,
+            complete_briefs
         );
         println!();
         println!("Tasks: {} total", total_tasks);
@@ -187,13 +187,13 @@ pub fn status(output: &Output) -> Result<()> {
             }
         }
 
-        if !anchors.is_empty() {
-            let active: Vec<_> = anchors.iter().filter(|a| a.is_active()).collect();
+        if !briefs.is_empty() {
+            let active: Vec<_> = briefs.iter().filter(|a| a.is_active()).collect();
             if !active.is_empty() {
                 println!();
-                println!("Active Anchors:");
-                for anchor in active {
-                    println!("  {} - {}", anchor.id, anchor.title);
+                println!("Active Briefs:");
+                for brief in active {
+                    println!("  {} - {}", brief.id, brief.title);
                 }
             }
         }

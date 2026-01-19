@@ -684,7 +684,7 @@ fn generate_commit_message(status: &str, _config: &DaemonConfig) -> String {
 
     // Count different types of changes
     let mut task_changes = 0;
-    let mut anchor_changes = 0;
+    let mut brief_changes = 0;
     let mut config_changes = 0;
 
     for line in &lines {
@@ -698,15 +698,15 @@ fn generate_commit_message(status: &str, _config: &DaemonConfig) -> String {
 
         if path.contains("tasks.jsonl") {
             task_changes += 1;
-        } else if path.contains("anchors/") && path.ends_with(".md") {
-            anchor_changes += 1;
+        } else if path.contains("briefs/") && path.ends_with(".md") {
+            brief_changes += 1;
         } else if path.contains("config.toml") {
             config_changes += 1;
         }
     }
 
     // Generate message based on changes
-    if task_changes > 0 && anchor_changes == 0 && config_changes == 0 {
+    if task_changes > 0 && brief_changes == 0 && config_changes == 0 {
         if task_changes == 1 {
             return "shape: update task".to_string();
         } else {
@@ -714,15 +714,15 @@ fn generate_commit_message(status: &str, _config: &DaemonConfig) -> String {
         }
     }
 
-    if anchor_changes > 0 && task_changes == 0 && config_changes == 0 {
-        if anchor_changes == 1 {
-            return "shape: update anchor".to_string();
+    if brief_changes > 0 && task_changes == 0 && config_changes == 0 {
+        if brief_changes == 1 {
+            return "shape: update brief".to_string();
         } else {
-            return format!("shape: update {} anchors", anchor_changes);
+            return format!("shape: update {} briefs", brief_changes);
         }
     }
 
-    if config_changes > 0 && task_changes == 0 && anchor_changes == 0 {
+    if config_changes > 0 && task_changes == 0 && brief_changes == 0 {
         return "shape: update config".to_string();
     }
 
@@ -731,8 +731,8 @@ fn generate_commit_message(status: &str, _config: &DaemonConfig) -> String {
     if task_changes > 0 {
         parts.push(format!("{} task{}", task_changes, if task_changes == 1 { "" } else { "s" }));
     }
-    if anchor_changes > 0 {
-        parts.push(format!("{} anchor{}", anchor_changes, if anchor_changes == 1 { "" } else { "s" }));
+    if brief_changes > 0 {
+        parts.push(format!("{} brief{}", brief_changes, if brief_changes == 1 { "" } else { "s" }));
     }
     if config_changes > 0 {
         parts.push("config".to_string());
@@ -786,13 +786,13 @@ mod tests {
         assert!(should_ignore_path(Path::new(".shape/.cache/db.sqlite")));
         assert!(should_ignore_path(Path::new(".shape/sync/state.json")));
         assert!(should_ignore_path(Path::new(".shape/.gitignore")));
-        assert!(should_ignore_path(Path::new(".shape/anchors/index.jsonl")));
+        assert!(should_ignore_path(Path::new(".shape/briefs/index.jsonl")));
         assert!(should_ignore_path(Path::new(".shape/daemon.pid")));
         assert!(should_ignore_path(Path::new(".shape/daemon.log")));
         assert!(should_ignore_path(Path::new(".shape/daemon.log.1")));
 
         assert!(!should_ignore_path(Path::new(".shape/tasks.jsonl")));
-        assert!(!should_ignore_path(Path::new(".shape/anchors/a-1234567.md")));
+        assert!(!should_ignore_path(Path::new(".shape/briefs/b-1234567.md")));
         assert!(!should_ignore_path(Path::new(".shape/config.toml")));
     }
 
@@ -813,18 +813,18 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_commit_message_anchor() {
-        let status = " M .shape/anchors/a-1234567.md\n";
+    fn test_generate_commit_message_brief() {
+        let status = " M .shape/briefs/b-1234567.md\n";
         let config = DaemonConfig::default();
         let message = generate_commit_message(status, &config);
-        assert_eq!(message, "shape: update anchor");
+        assert_eq!(message, "shape: update brief");
     }
 
     #[test]
     fn test_generate_commit_message_mixed() {
-        let status = " M .shape/tasks.jsonl\n M .shape/anchors/a-1234567.md\n";
+        let status = " M .shape/tasks.jsonl\n M .shape/briefs/b-1234567.md\n";
         let config = DaemonConfig::default();
         let message = generate_commit_message(status, &config);
-        assert_eq!(message, "shape: update 1 task, 1 anchor");
+        assert_eq!(message, "shape: update 1 task, 1 brief");
     }
 }

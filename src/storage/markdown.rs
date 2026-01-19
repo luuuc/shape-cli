@@ -1,8 +1,8 @@
-//! Markdown storage for anchors
+//! Markdown storage for briefs
 //!
-//! Anchors are stored as markdown files in `.shape/anchors/`.
+//! Briefs are stored as markdown files in `.shape/briefs/`.
 //! Each file has YAML frontmatter for metadata and markdown body.
-//! An index file (`.shape/anchors/index.jsonl`) caches metadata for fast queries.
+//! An index file (`.shape/briefs/index.jsonl`) caches metadata for fast queries.
 
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -11,43 +11,43 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-use crate::domain::{Anchor, AnchorFrontmatter, AnchorId};
+use crate::domain::{Brief, BriefFrontmatter, BriefId};
 
-/// Index entry for quick anchor lookups
+/// Index entry for quick brief lookups
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct IndexEntry {
-    id: AnchorId,
+    id: BriefId,
     title: String,
-    anchor_type: String,
-    status: crate::domain::AnchorStatus,
+    brief_type: String,
+    status: crate::domain::BriefStatus,
     updated_at: chrono::DateTime<chrono::Utc>,
     file_name: String,
 }
 
-impl From<&Anchor> for IndexEntry {
-    fn from(anchor: &Anchor) -> Self {
+impl From<&Brief> for IndexEntry {
+    fn from(brief: &Brief) -> Self {
         Self {
-            id: anchor.id.clone(),
-            title: anchor.title.clone(),
-            anchor_type: anchor.anchor_type.clone(),
-            status: anchor.status,
-            updated_at: anchor.updated_at,
-            file_name: format!("{}.md", anchor.id),
+            id: brief.id.clone(),
+            title: brief.title.clone(),
+            brief_type: brief.brief_type.clone(),
+            status: brief.status,
+            updated_at: brief.updated_at,
+            file_name: format!("{}.md", brief.id),
         }
     }
 }
 
-/// Store for anchor data as markdown files
-pub struct AnchorStore {
-    /// Directory containing anchor files
+/// Store for brief data as markdown files
+pub struct BriefStore {
+    /// Directory containing brief files
     dir: PathBuf,
 
     /// Path to the index file
     index_path: PathBuf,
 }
 
-impl AnchorStore {
-    /// Creates a new anchor store at the given directory
+impl BriefStore {
+    /// Creates a new brief store at the given directory
     pub fn new(dir: impl Into<PathBuf>) -> Self {
         let dir = dir.into();
         let index_path = dir.join("index.jsonl");
@@ -56,16 +56,16 @@ impl AnchorStore {
 
     /// Creates the default store for a project
     pub fn for_project(project_root: &Path) -> Self {
-        Self::new(project_root.join(".shape").join("anchors"))
+        Self::new(project_root.join(".shape").join("briefs"))
     }
 
-    /// Returns the directory containing anchor files
+    /// Returns the directory containing brief files
     pub fn dir(&self) -> &Path {
         &self.dir
     }
 
-    /// Returns the path to an anchor file
-    fn anchor_path(&self, id: &AnchorId) -> PathBuf {
+    /// Returns the path to a brief file
+    fn brief_path(&self, id: &BriefId) -> PathBuf {
         self.dir.join(format!("{}.md", id))
     }
 
@@ -113,7 +113,7 @@ impl AnchorStore {
     }
 
     /// Reads the index file
-    fn read_index(&self) -> Result<HashMap<AnchorId, IndexEntry>> {
+    fn read_index(&self) -> Result<HashMap<BriefId, IndexEntry>> {
         if !self.index_path.exists() {
             return Ok(HashMap::new());
         }
@@ -142,7 +142,7 @@ impl AnchorStore {
     }
 
     /// Writes the index file
-    fn write_index(&self, entries: &HashMap<AnchorId, IndexEntry>) -> Result<()> {
+    fn write_index(&self, entries: &HashMap<BriefId, IndexEntry>) -> Result<()> {
         fs::create_dir_all(&self.dir)
             .with_context(|| format!("Failed to create directory: {}", self.dir.display()))?;
 
@@ -164,7 +164,7 @@ impl AnchorStore {
     }
 
     /// Rebuilds the index from files
-    fn rebuild_index(&self) -> Result<HashMap<AnchorId, IndexEntry>> {
+    fn rebuild_index(&self) -> Result<HashMap<BriefId, IndexEntry>> {
         let mut entries = HashMap::new();
 
         if !self.dir.exists() {
@@ -178,8 +178,8 @@ impl AnchorStore {
             let path = entry.path();
 
             if path.extension().is_some_and(|e| e == "md") {
-                if let Ok(anchor) = self.read_from_file(&path) {
-                    entries.insert(anchor.id.clone(), IndexEntry::from(&anchor));
+                if let Ok(brief) = self.read_from_file(&path) {
+                    entries.insert(brief.id.clone(), IndexEntry::from(&brief));
                 }
             }
         }
@@ -189,7 +189,7 @@ impl AnchorStore {
     }
 
     /// Ensures the index is up-to-date
-    fn ensure_index(&self) -> Result<HashMap<AnchorId, IndexEntry>> {
+    fn ensure_index(&self) -> Result<HashMap<BriefId, IndexEntry>> {
         if self.index_is_stale() {
             self.rebuild_index()
         } else {
@@ -197,16 +197,16 @@ impl AnchorStore {
         }
     }
 
-    /// Reads an anchor from a file
-    fn read_from_file(&self, path: &Path) -> Result<Anchor> {
+    /// Reads a brief from a file
+    fn read_from_file(&self, path: &Path) -> Result<Brief> {
         let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read anchor file: {}", path.display()))?;
+            .with_context(|| format!("Failed to read brief file: {}", path.display()))?;
 
         self.parse_markdown(&content)
     }
 
-    /// Parses a markdown string into an Anchor
-    fn parse_markdown(&self, content: &str) -> Result<Anchor> {
+    /// Parses a markdown string into a Brief
+    fn parse_markdown(&self, content: &str) -> Result<Brief> {
         // Manual frontmatter parsing
         let content = content.trim();
 
@@ -224,20 +224,20 @@ impl AnchorStore {
         let body = rest[end_pos + 3..].trim();
 
         // Parse YAML frontmatter
-        let fm: AnchorFrontmatter =
+        let fm: BriefFrontmatter =
             serde_yaml::from_str(yaml_content).context("Failed to parse frontmatter")?;
 
-        Ok(fm.into_anchor(body.to_string()))
+        Ok(fm.into_brief(body.to_string()))
     }
 
-    /// Writes an anchor to its file atomically (temp file + rename)
-    fn write_to_file(&self, anchor: &Anchor) -> Result<()> {
+    /// Writes a brief to its file atomically (temp file + rename)
+    fn write_to_file(&self, brief: &Brief) -> Result<()> {
         fs::create_dir_all(&self.dir)
             .with_context(|| format!("Failed to create directory: {}", self.dir.display()))?;
 
-        let path = self.anchor_path(&anchor.id);
+        let path = self.brief_path(&brief.id);
         let temp_path = path.with_extension("md.tmp");
-        let content = self.render_markdown(anchor)?;
+        let content = self.render_markdown(brief)?;
 
         // Write to temp file first
         fs::write(&temp_path, &content)
@@ -255,9 +255,9 @@ impl AnchorStore {
         Ok(())
     }
 
-    /// Renders an anchor to markdown
-    fn render_markdown(&self, anchor: &Anchor) -> Result<String> {
-        let frontmatter = AnchorFrontmatter::from(anchor);
+    /// Renders a brief to markdown
+    fn render_markdown(&self, brief: &Brief) -> Result<String> {
+        let frontmatter = BriefFrontmatter::from(brief);
         let yaml =
             serde_yaml::to_string(&frontmatter).context("Failed to serialize frontmatter")?;
 
@@ -265,7 +265,7 @@ impl AnchorStore {
         content.push_str("---\n");
         content.push_str(&yaml);
         content.push_str("---\n\n");
-        content.push_str(&anchor.body);
+        content.push_str(&brief.body);
 
         if !content.ends_with('\n') {
             content.push('\n');
@@ -274,13 +274,13 @@ impl AnchorStore {
         Ok(content)
     }
 
-    /// Reads all anchors
-    pub fn read_all(&self) -> Result<HashMap<AnchorId, Anchor>> {
+    /// Reads all briefs
+    pub fn read_all(&self) -> Result<HashMap<BriefId, Brief>> {
         let _ = self.ensure_index()?; // Ensure index is fresh
-        let mut anchors = HashMap::new();
+        let mut briefs = HashMap::new();
 
         if !self.dir.exists() {
-            return Ok(anchors);
+            return Ok(briefs);
         }
 
         for entry in fs::read_dir(&self.dir)
@@ -290,17 +290,17 @@ impl AnchorStore {
             let path = entry.path();
 
             if path.extension().is_some_and(|e| e == "md") {
-                if let Ok(anchor) = self.read_from_file(&path) {
-                    anchors.insert(anchor.id.clone(), anchor);
+                if let Ok(brief) = self.read_from_file(&path) {
+                    briefs.insert(brief.id.clone(), brief);
                 }
             }
         }
 
-        Ok(anchors)
+        Ok(briefs)
     }
 
-    /// Lists anchors with basic info (from index, fast)
-    pub fn list(&self) -> Result<Vec<(AnchorId, String, crate::domain::AnchorStatus)>> {
+    /// Lists briefs with basic info (from index, fast)
+    pub fn list(&self) -> Result<Vec<(BriefId, String, crate::domain::BriefStatus)>> {
         let index = self.ensure_index()?;
         Ok(index
             .values()
@@ -308,11 +308,11 @@ impl AnchorStore {
             .collect())
     }
 
-    /// Lists anchors filtered by status
+    /// Lists briefs filtered by status
     pub fn list_by_status(
         &self,
-        status: crate::domain::AnchorStatus,
-    ) -> Result<Vec<(AnchorId, String)>> {
+        status: crate::domain::BriefStatus,
+    ) -> Result<Vec<(BriefId, String)>> {
         let index = self.ensure_index()?;
         Ok(index
             .values()
@@ -321,9 +321,9 @@ impl AnchorStore {
             .collect())
     }
 
-    /// Reads a single anchor by ID
-    pub fn read(&self, id: &AnchorId) -> Result<Option<Anchor>> {
-        let path = self.anchor_path(id);
+    /// Reads a single brief by ID
+    pub fn read(&self, id: &BriefId) -> Result<Option<Brief>> {
+        let path = self.brief_path(id);
         if !path.exists() {
             return Ok(None);
         }
@@ -331,27 +331,27 @@ impl AnchorStore {
         Ok(Some(self.read_from_file(&path)?))
     }
 
-    /// Writes an anchor
-    pub fn write(&self, anchor: &Anchor) -> Result<()> {
-        self.write_to_file(anchor)?;
+    /// Writes a brief
+    pub fn write(&self, brief: &Brief) -> Result<()> {
+        self.write_to_file(brief)?;
 
         // Update index
         let mut index = self.read_index().unwrap_or_default();
-        index.insert(anchor.id.clone(), IndexEntry::from(anchor));
+        index.insert(brief.id.clone(), IndexEntry::from(brief));
         self.write_index(&index)?;
 
         Ok(())
     }
 
-    /// Removes an anchor by ID
-    pub fn remove(&self, id: &AnchorId) -> Result<bool> {
-        let path = self.anchor_path(id);
+    /// Removes a brief by ID
+    pub fn remove(&self, id: &BriefId) -> Result<bool> {
+        let path = self.brief_path(id);
         if !path.exists() {
             return Ok(false);
         }
 
         fs::remove_file(&path)
-            .with_context(|| format!("Failed to remove anchor file: {}", path.display()))?;
+            .with_context(|| format!("Failed to remove brief file: {}", path.display()))?;
 
         // Update index
         let mut index = self.read_index().unwrap_or_default();
@@ -361,54 +361,54 @@ impl AnchorStore {
         Ok(true)
     }
 
-    /// Checks if an anchor exists
-    pub fn exists(&self, id: &AnchorId) -> bool {
-        self.anchor_path(id).exists()
+    /// Checks if a brief exists
+    pub fn exists(&self, id: &BriefId) -> bool {
+        self.brief_path(id).exists()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::{Anchor, AnchorStatus};
+    use crate::domain::{Brief, BriefStatus};
     use tempfile::TempDir;
 
     #[test]
     fn read_empty_store() {
         let dir = TempDir::new().unwrap();
-        let store = AnchorStore::new(dir.path().join("anchors"));
+        let store = BriefStore::new(dir.path().join("briefs"));
 
-        let anchors = store.read_all().unwrap();
-        assert!(anchors.is_empty());
+        let briefs = store.read_all().unwrap();
+        assert!(briefs.is_empty());
     }
 
     #[test]
-    fn write_and_read_anchor() {
+    fn write_and_read_brief() {
         let dir = TempDir::new().unwrap();
-        let store = AnchorStore::new(dir.path().join("anchors"));
+        let store = BriefStore::new(dir.path().join("briefs"));
 
-        let mut anchor = Anchor::new("Test Pitch", "minimal");
-        anchor.set_body("# Problem\n\nThis is a test.");
-        anchor.set_meta("custom", "value");
+        let mut brief = Brief::new("Test Pitch", "minimal");
+        brief.set_body("# Problem\n\nThis is a test.");
+        brief.set_meta("custom", "value");
 
-        store.write(&anchor).unwrap();
+        store.write(&brief).unwrap();
 
-        let loaded = store.read(&anchor.id).unwrap().unwrap();
-        assert_eq!(loaded.title, anchor.title);
-        assert_eq!(loaded.body, anchor.body);
+        let loaded = store.read(&brief.id).unwrap().unwrap();
+        assert_eq!(loaded.title, brief.title);
+        assert_eq!(loaded.body, brief.body);
         assert_eq!(loaded.get_meta("custom"), Some(&serde_json::json!("value")));
     }
 
     #[test]
-    fn list_anchors() {
+    fn list_briefs() {
         let dir = TempDir::new().unwrap();
-        let store = AnchorStore::new(dir.path().join("anchors"));
+        let store = BriefStore::new(dir.path().join("briefs"));
 
-        let anchor1 = Anchor::new("Pitch 1", "minimal");
-        let anchor2 = Anchor::new("Pitch 2", "shapeup");
+        let brief1 = Brief::new("Pitch 1", "minimal");
+        let brief2 = Brief::new("Pitch 2", "shapeup");
 
-        store.write(&anchor1).unwrap();
-        store.write(&anchor2).unwrap();
+        store.write(&brief1).unwrap();
+        store.write(&brief2).unwrap();
 
         let list = store.list().unwrap();
         assert_eq!(list.len(), 2);
@@ -417,46 +417,46 @@ mod tests {
     #[test]
     fn list_by_status() {
         let dir = TempDir::new().unwrap();
-        let store = AnchorStore::new(dir.path().join("anchors"));
+        let store = BriefStore::new(dir.path().join("briefs"));
 
-        let mut anchor1 = Anchor::new("Active", "minimal");
-        anchor1.set_status(AnchorStatus::InProgress);
+        let mut brief1 = Brief::new("Active", "minimal");
+        brief1.set_status(BriefStatus::InProgress);
 
-        let anchor2 = Anchor::new("Proposed", "minimal");
+        let brief2 = Brief::new("Proposed", "minimal");
 
-        store.write(&anchor1).unwrap();
-        store.write(&anchor2).unwrap();
+        store.write(&brief1).unwrap();
+        store.write(&brief2).unwrap();
 
-        let active = store.list_by_status(AnchorStatus::InProgress).unwrap();
+        let active = store.list_by_status(BriefStatus::InProgress).unwrap();
         assert_eq!(active.len(), 1);
         assert_eq!(active[0].1, "Active");
     }
 
     #[test]
-    fn remove_anchor() {
+    fn remove_brief() {
         let dir = TempDir::new().unwrap();
-        let store = AnchorStore::new(dir.path().join("anchors"));
+        let store = BriefStore::new(dir.path().join("briefs"));
 
-        let anchor = Anchor::new("Test", "minimal");
-        store.write(&anchor).unwrap();
+        let brief = Brief::new("Test", "minimal");
+        store.write(&brief).unwrap();
 
-        assert!(store.exists(&anchor.id));
+        assert!(store.exists(&brief.id));
 
-        let removed = store.remove(&anchor.id).unwrap();
+        let removed = store.remove(&brief.id).unwrap();
         assert!(removed);
-        assert!(!store.exists(&anchor.id));
+        assert!(!store.exists(&brief.id));
     }
 
     #[test]
     fn index_rebuilds_on_manual_edit() {
         let dir = TempDir::new().unwrap();
-        let store = AnchorStore::new(dir.path().join("anchors"));
+        let store = BriefStore::new(dir.path().join("briefs"));
 
-        let anchor = Anchor::new("Test", "minimal");
-        store.write(&anchor).unwrap();
+        let brief = Brief::new("Test", "minimal");
+        store.write(&brief).unwrap();
 
         // Manually edit the file
-        let path = store.anchor_path(&anchor.id);
+        let path = store.brief_path(&brief.id);
         let content = fs::read_to_string(&path).unwrap();
         let new_content = content.replace("Test", "Updated Title");
 
@@ -465,23 +465,23 @@ mod tests {
         fs::write(&path, new_content).unwrap();
 
         // Index should rebuild and reflect the change
-        let loaded = store.read(&anchor.id).unwrap().unwrap();
+        let loaded = store.read(&brief.id).unwrap().unwrap();
         assert_eq!(loaded.title, "Updated Title");
     }
 
     #[test]
     fn index_handles_deleted_files() {
         let dir = TempDir::new().unwrap();
-        let store = AnchorStore::new(dir.path().join("anchors"));
+        let store = BriefStore::new(dir.path().join("briefs"));
 
-        let anchor = Anchor::new("Test", "minimal");
-        store.write(&anchor).unwrap();
+        let brief = Brief::new("Test", "minimal");
+        store.write(&brief).unwrap();
 
         // Manually delete the file
-        let path = store.anchor_path(&anchor.id);
+        let path = store.brief_path(&brief.id);
         fs::remove_file(&path).unwrap();
 
-        // List should not include the deleted anchor
+        // List should not include the deleted brief
         let list = store.list().unwrap();
         assert!(list.is_empty());
     }
@@ -489,40 +489,40 @@ mod tests {
     #[test]
     fn markdown_roundtrip() {
         let dir = TempDir::new().unwrap();
-        let store = AnchorStore::new(dir.path().join("anchors"));
+        let store = BriefStore::new(dir.path().join("briefs"));
 
-        let mut anchor = Anchor::new("Complex Pitch", "shapeup");
-        anchor.set_body("# Problem\n\nMulti-line\ncontent here.\n\n## Solution\n\nMore content.");
-        anchor.set_meta("appetite", "6 weeks");
-        anchor.set_meta("tags", serde_json::json!(["tag1", "tag2"]));
-        anchor.set_status(AnchorStatus::InProgress);
+        let mut brief = Brief::new("Complex Pitch", "shapeup");
+        brief.set_body("# Problem\n\nMulti-line\ncontent here.\n\n## Solution\n\nMore content.");
+        brief.set_meta("appetite", "6 weeks");
+        brief.set_meta("tags", serde_json::json!(["tag1", "tag2"]));
+        brief.set_status(BriefStatus::InProgress);
 
-        store.write(&anchor).unwrap();
+        store.write(&brief).unwrap();
 
-        let loaded = store.read(&anchor.id).unwrap().unwrap();
-        assert_eq!(loaded.title, anchor.title);
-        assert_eq!(loaded.anchor_type, anchor.anchor_type);
-        assert_eq!(loaded.status, anchor.status);
-        assert_eq!(loaded.body, anchor.body);
-        assert_eq!(loaded.get_meta("appetite"), anchor.get_meta("appetite"));
+        let loaded = store.read(&brief.id).unwrap().unwrap();
+        assert_eq!(loaded.title, brief.title);
+        assert_eq!(loaded.brief_type, brief.brief_type);
+        assert_eq!(loaded.status, brief.status);
+        assert_eq!(loaded.body, brief.body);
+        assert_eq!(loaded.get_meta("appetite"), brief.get_meta("appetite"));
     }
 
     #[test]
     fn atomic_write_no_temp_file_left() {
         let dir = TempDir::new().unwrap();
-        let store = AnchorStore::new(dir.path().join("anchors"));
+        let store = BriefStore::new(dir.path().join("briefs"));
 
-        let anchor = Anchor::new("Atomic Test", "minimal");
-        store.write(&anchor).unwrap();
+        let brief = Brief::new("Atomic Test", "minimal");
+        store.write(&brief).unwrap();
 
         // Temp file should not exist after write
-        let temp_path = store.anchor_path(&anchor.id).with_extension("md.tmp");
+        let temp_path = store.brief_path(&brief.id).with_extension("md.tmp");
         assert!(
             !temp_path.exists(),
             "Temp file should be removed after atomic write"
         );
 
         // Actual file should exist
-        assert!(store.anchor_path(&anchor.id).exists());
+        assert!(store.brief_path(&brief.id).exists());
     }
 }

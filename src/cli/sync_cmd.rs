@@ -21,7 +21,7 @@ pub enum SyncCommands {
 
     /// Link a local ID to a remote ID
     Link {
-        /// Local ID (anchor or task)
+        /// Local ID (brief or task)
         local: String,
 
         /// Remote ID
@@ -73,17 +73,17 @@ fn run_sync(output: &Output, plugin_name: &str) -> Result<()> {
         anyhow::bail!("Plugin connection test failed. Check your credentials.");
     }
 
-    // Get current anchors and tasks
-    let anchor_store = project.anchor_store();
+    // Get current briefs and tasks
+    let brief_store = project.brief_store();
     let task_store = project.task_store();
 
-    let anchors = anchor_store.read_all()?;
+    let briefs = brief_store.read_all()?;
     let tasks = task_store.read_all()?;
 
     // Convert to JSON values for the plugin
-    let anchor_values: Vec<_> = anchors
+    let brief_values: Vec<_> = briefs
         .values()
-        .map(|a| serde_json::to_value(a).unwrap())
+        .map(|b| serde_json::to_value(b).unwrap())
         .collect();
 
     let task_values: Vec<_> = tasks
@@ -92,10 +92,10 @@ fn run_sync(output: &Output, plugin_name: &str) -> Result<()> {
         .collect();
 
     // Push local changes
-    let push_result = sync.push(&anchor_values, &task_values)?;
+    let push_result = sync.push(&brief_values, &task_values)?;
 
     // Pull remote changes
-    let (pull_result, _pulled_anchors, _pulled_tasks) = sync.pull()?;
+    let (pull_result, _pulled_briefs, _pulled_tasks) = sync.pull()?;
 
     // TODO: Apply pulled changes to local storage
     // This would require merging logic that respects last-write-wins
@@ -184,7 +184,7 @@ fn sync_status(output: &Output) -> Result<()> {
         println!("Sync Status:");
         println!(
             "{:<25} {:<10} {:<10} LAST SYNC",
-            "PLUGIN", "ANCHORS", "TASKS"
+            "PLUGIN", "BRIEFS", "TASKS"
         );
         println!("{}", "-".repeat(70));
 
@@ -196,7 +196,7 @@ fn sync_status(output: &Output) -> Result<()> {
 
             println!(
                 "{:<25} {:<10} {:<10} {}",
-                status.plugin, status.mapped_anchors, status.mapped_tasks, last_sync
+                status.plugin, status.mapped_briefs, status.mapped_tasks, last_sync
             );
         }
     }
@@ -223,7 +223,7 @@ fn link_ids(output: &Output, local: &str, remote: &str, plugin_name: &str) -> Re
     let entity_type = if local.contains('.') {
         EntityType::Task
     } else {
-        EntityType::Anchor
+        EntityType::Brief
     };
 
     sync.link(local, remote, entity_type)?;

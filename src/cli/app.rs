@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 
 use super::output::{Output, OutputFormat};
 use super::{
-    agent_setup, anchor, cache_cmd, compact, context, daemon, merge_driver, plugin_cmd, query,
+    agent_setup, brief, cache_cmd, compact, context, daemon, merge_driver, plugin_cmd, query,
     sync_cmd, task, tui,
 };
 use crate::storage::Project;
@@ -40,9 +40,9 @@ pub enum Commands {
         path: String,
     },
 
-    /// Manage anchors (pitches, RFCs, etc.)
+    /// Manage briefs (pitches, RFCs, etc.)
     #[command(subcommand)]
-    Anchor(anchor::AnchorCommands),
+    Brief(brief::BriefCommands),
 
     /// Manage tasks
     #[command(subcommand)]
@@ -50,16 +50,16 @@ pub enum Commands {
 
     /// Show tasks ready to work on
     Ready {
-        /// Filter by anchor ID
+        /// Filter by brief ID
         #[arg(long)]
-        anchor: Option<String>,
+        brief: Option<String>,
     },
 
     /// Show blocked tasks
     Blocked {
-        /// Filter by anchor ID
+        /// Filter by brief ID
         #[arg(long)]
-        anchor: Option<String>,
+        brief: Option<String>,
     },
 
     /// Show project status overview
@@ -71,9 +71,9 @@ pub enum Commands {
         #[arg(long, short)]
         compact: bool,
 
-        /// Filter by anchor ID
+        /// Filter by brief ID
         #[arg(long)]
-        anchor: Option<String>,
+        brief: Option<String>,
 
         /// Days of completed tasks to include
         #[arg(long, default_value = "7")]
@@ -86,9 +86,9 @@ pub enum Commands {
         #[arg(long, default_value = "14")]
         days: u32,
 
-        /// Filter by anchor ID
+        /// Filter by brief ID
         #[arg(long)]
-        anchor: Option<String>,
+        brief: Option<String>,
 
         /// Preview without making changes
         #[arg(long)]
@@ -126,7 +126,7 @@ pub enum Commands {
     #[command(subcommand)]
     Cache(cache_cmd::CacheCommands),
 
-    /// Search tasks and anchors
+    /// Search tasks and briefs
     Search {
         /// Search query
         query: String,
@@ -158,9 +158,9 @@ pub enum Commands {
 
     /// Launch interactive TUI viewer
     Tui {
-        /// Start focused on a specific anchor
+        /// Start focused on a specific brief
         #[arg(short, long)]
-        anchor: Option<String>,
+        brief: Option<String>,
 
         /// Start with a specific view (overview, kanban, graph)
         #[arg(short, long, default_value = "overview")]
@@ -204,22 +204,22 @@ pub fn run() -> Result<()> {
             ));
         }
 
-        Commands::Anchor(cmd) => anchor::run(cmd, &output)?,
+        Commands::Brief(cmd) => brief::run(cmd, &output)?,
         Commands::Task(cmd) => task::run(cmd, &output)?,
 
-        Commands::Ready { anchor } => {
+        Commands::Ready { brief } => {
             output.verbose_ctx(
                 "ready",
-                &format!("Querying ready tasks, anchor filter: {:?}", anchor),
+                &format!("Querying ready tasks, brief filter: {:?}", brief),
             );
-            query::ready(&output, anchor.as_deref())?
+            query::ready(&output, brief.as_deref())?
         }
-        Commands::Blocked { anchor } => {
+        Commands::Blocked { brief } => {
             output.verbose_ctx(
                 "blocked",
-                &format!("Querying blocked tasks, anchor filter: {:?}", anchor),
+                &format!("Querying blocked tasks, brief filter: {:?}", brief),
             );
-            query::blocked(&output, anchor.as_deref())?
+            query::blocked(&output, brief.as_deref())?
         }
         Commands::Status => {
             output.verbose("Gathering project status");
@@ -228,22 +228,22 @@ pub fn run() -> Result<()> {
 
         Commands::Context {
             compact: compact_mode,
-            anchor,
+            brief,
             days,
         } => {
             output.verbose_ctx(
                 "context",
                 &format!(
-                    "Exporting context: compact={}, anchor={:?}, days={}",
-                    compact_mode, anchor, days
+                    "Exporting context: compact={}, brief={:?}, days={}",
+                    compact_mode, brief, days
                 ),
             );
-            context::export(&output, compact_mode, anchor.as_deref(), days)?
+            context::export(&output, compact_mode, brief.as_deref(), days)?
         }
 
         Commands::Compact {
             days,
-            anchor,
+            brief,
             dry_run,
             strategy,
             undo,
@@ -254,7 +254,7 @@ pub fn run() -> Result<()> {
                 compact::run(
                     &output,
                     days,
-                    anchor.as_deref(),
+                    brief.as_deref(),
                     dry_run,
                     strategy.as_deref(),
                 )?
@@ -287,9 +287,9 @@ pub fn run() -> Result<()> {
             AdvancedCommands::Sync(cmd) => sync_cmd::run(cmd, &output)?,
         },
 
-        Commands::Tui { anchor, view } => {
-            output.verbose_ctx("tui", &format!("Launching TUI, anchor={:?}, view={}", anchor, view));
-            tui::run(&output, anchor.as_deref(), &view)?
+        Commands::Tui { brief, view } => {
+            output.verbose_ctx("tui", &format!("Launching TUI, brief={:?}, view={}", brief, view));
+            tui::run(&output, brief.as_deref(), &view)?
         }
     }
 
@@ -297,7 +297,7 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
-/// Search tasks and anchors using the SQLite cache
+/// Search tasks and briefs using the SQLite cache
 fn search(output: &Output, query: &str) -> Result<()> {
     use crate::storage::SearchResultType;
 

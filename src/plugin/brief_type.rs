@@ -1,7 +1,7 @@
-//! Anchor type plugin interface
+//! Brief type plugin interface
 //!
-//! Anchor type plugins provide:
-//! - Templates for new anchors
+//! Brief type plugins provide:
+//! - Templates for new briefs
 //! - Parsing and validation of frontmatter
 //! - Status definitions
 
@@ -10,23 +10,23 @@ use serde::{Deserialize, Serialize};
 use super::loader::PluginLoader;
 use super::protocol::PluginRequest;
 
-/// Template for creating a new anchor
+/// Template for creating a new brief
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AnchorTemplate {
+pub struct BriefTemplate {
     /// Default frontmatter fields
     pub frontmatter: serde_json::Value,
 
     /// Default body content
     pub body: String,
 
-    /// Valid status values for this anchor type
+    /// Valid status values for this brief type
     pub statuses: Vec<String>,
 }
 
-/// Parsed anchor data with validation result
+/// Parsed brief data with validation result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParseResult {
-    /// Whether the anchor is valid
+    /// Whether the brief is valid
     pub valid: bool,
 
     /// Parsed metadata (if valid)
@@ -46,14 +46,14 @@ pub struct ValidationError {
     pub message: String,
 }
 
-/// Anchor type plugin wrapper
-pub struct AnchorTypePlugin<'a> {
+/// Brief type plugin wrapper
+pub struct BriefTypePlugin<'a> {
     loader: &'a PluginLoader,
     plugin_name: String,
 }
 
-impl<'a> AnchorTypePlugin<'a> {
-    /// Creates a new anchor type plugin wrapper
+impl<'a> BriefTypePlugin<'a> {
+    /// Creates a new brief type plugin wrapper
     pub fn new(loader: &'a PluginLoader, plugin_name: impl Into<String>) -> Self {
         Self {
             loader,
@@ -61,8 +61,8 @@ impl<'a> AnchorTypePlugin<'a> {
         }
     }
 
-    /// Gets the template for a new anchor
-    pub fn template(&self, title: &str) -> anyhow::Result<AnchorTemplate> {
+    /// Gets the template for a new brief
+    pub fn template(&self, title: &str) -> anyhow::Result<BriefTemplate> {
         let request = PluginRequest::new(
             "template",
             serde_json::json!({
@@ -85,13 +85,13 @@ impl<'a> AnchorTypePlugin<'a> {
             .data
             .ok_or_else(|| anyhow::anyhow!("No template data returned"))?;
 
-        let template: AnchorTemplate =
+        let template: BriefTemplate =
             serde_json::from_value(data).context("Failed to parse template")?;
 
         Ok(template)
     }
 
-    /// Parses and validates an anchor
+    /// Parses and validates an brief
     pub fn parse(
         &self,
         frontmatter: &serde_json::Value,
@@ -125,7 +125,7 @@ impl<'a> AnchorTypePlugin<'a> {
         Ok(result)
     }
 
-    /// Gets valid statuses for this anchor type
+    /// Gets valid statuses for this brief type
     pub fn statuses(&self) -> anyhow::Result<Vec<String>> {
         let request = PluginRequest::new("statuses", serde_json::json!({}));
 
@@ -153,13 +153,13 @@ impl<'a> AnchorTypePlugin<'a> {
 
 use anyhow::Context;
 
-/// Built-in minimal anchor type (no plugin required)
-pub struct MinimalAnchorType;
+/// Built-in minimal brief type (no plugin required)
+pub struct MinimalBriefType;
 
-impl MinimalAnchorType {
-    /// Gets the template for a minimal anchor
-    pub fn template(title: &str) -> AnchorTemplate {
-        AnchorTemplate {
+impl MinimalBriefType {
+    /// Gets the template for a minimal brief
+    pub fn template(title: &str) -> BriefTemplate {
+        BriefTemplate {
             frontmatter: serde_json::json!({
                 "title": title,
                 "status": "proposed",
@@ -179,7 +179,7 @@ impl MinimalAnchorType {
         ]
     }
 
-    /// Validates a minimal anchor
+    /// Validates a minimal brief
     pub fn validate(frontmatter: &serde_json::Value) -> ParseResult {
         let mut errors = Vec::new();
 
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn minimal_template() {
-        let template = MinimalAnchorType::template("Test Pitch");
+        let template = MinimalBriefType::template("Test Pitch");
 
         assert_eq!(
             template.frontmatter.get("title").unwrap().as_str().unwrap(),
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn minimal_statuses() {
-        let statuses = MinimalAnchorType::statuses();
+        let statuses = MinimalBriefType::statuses();
 
         assert!(statuses.contains(&"proposed".to_string()));
         assert!(statuses.contains(&"in_progress".to_string()));
@@ -248,7 +248,7 @@ mod tests {
             "status": "proposed",
         });
 
-        let result = MinimalAnchorType::validate(&frontmatter);
+        let result = MinimalBriefType::validate(&frontmatter);
         assert!(result.valid);
         assert!(result.errors.is_empty());
     }
@@ -259,7 +259,7 @@ mod tests {
             "status": "proposed",
         });
 
-        let result = MinimalAnchorType::validate(&frontmatter);
+        let result = MinimalBriefType::validate(&frontmatter);
         assert!(!result.valid);
         assert!(result.errors.iter().any(|e| e.field == "title"));
     }
@@ -271,7 +271,7 @@ mod tests {
             "status": "invalid_status",
         });
 
-        let result = MinimalAnchorType::validate(&frontmatter);
+        let result = MinimalBriefType::validate(&frontmatter);
         assert!(!result.valid);
         assert!(result.errors.iter().any(|e| e.field == "status"));
     }

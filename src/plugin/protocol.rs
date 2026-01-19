@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 /// Plugin manifest declaring capabilities
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginManifest {
-    /// Plugin name (e.g., "shape-anchor-shapeup")
+    /// Plugin name (e.g., "shape-brief-shapeup")
     pub name: String,
 
     /// Plugin version
@@ -29,8 +29,9 @@ pub struct PluginManifest {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PluginType {
-    /// Anchor type plugin (templates and validation)
-    AnchorType,
+    /// Brief type plugin (templates and validation)
+    #[serde(alias = "anchor_type")]
+    BriefType,
 
     /// Sync plugin (external tool integration)
     Sync,
@@ -103,10 +104,10 @@ mod tests {
     #[test]
     fn manifest_serialization() {
         let manifest = PluginManifest {
-            name: "shape-anchor-shapeup".to_string(),
+            name: "shape-brief-shapeup".to_string(),
             version: "0.1.0".to_string(),
-            description: "ShapeUp anchor type".to_string(),
-            plugin_type: PluginType::AnchorType,
+            description: "ShapeUp brief type".to_string(),
+            plugin_type: PluginType::BriefType,
             operations: vec!["template".to_string(), "parse".to_string()],
         };
 
@@ -114,7 +115,7 @@ mod tests {
         let parsed: PluginManifest = serde_json::from_str(&json).unwrap();
 
         assert_eq!(parsed.name, manifest.name);
-        assert_eq!(parsed.plugin_type, PluginType::AnchorType);
+        assert_eq!(parsed.plugin_type, PluginType::BriefType);
     }
 
     #[test]

@@ -41,7 +41,7 @@ impl FromStr for ViewMode {
 }
 
 /// Launch the TUI
-pub fn run(output: &Output, anchor_filter: Option<&str>, view: &str) -> Result<()> {
+pub fn run(output: &Output, brief_filter: Option<&str>, view: &str) -> Result<()> {
     output.verbose_ctx("tui", "Initializing TUI application");
 
     let view_mode = view.parse().unwrap_or_default();
@@ -50,7 +50,7 @@ pub fn run(output: &Output, anchor_filter: Option<&str>, view: &str) -> Result<(
     let mut terminal = ui::init_terminal()?;
 
     // Create app state
-    let app_result = App::new(anchor_filter, view_mode);
+    let app_result = App::new(brief_filter, view_mode);
 
     // Handle app creation failure - restore terminal first
     let mut app = match app_result {

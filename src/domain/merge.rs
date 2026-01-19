@@ -200,12 +200,12 @@ pub fn merge_tasks(base: &Task, ours: &Task, theirs: &Task) -> MergeResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::{AnchorId, TaskId, TaskStatus};
+    use crate::domain::{BriefId, TaskId, TaskStatus};
     use chrono::Utc;
 
     fn make_test_task(title: &str) -> Task {
-        let anchor = AnchorId::new("Test", Utc::now());
-        let task_id = TaskId::new(&anchor, 1);
+        let brief = BriefId::new("Test", Utc::now());
+        let task_id = TaskId::new(&brief, 1);
         Task::new(task_id, title)
     }
 
@@ -278,10 +278,10 @@ mod tests {
 
     #[test]
     fn merge_dependency_additions() {
-        let anchor = AnchorId::new("Test", Utc::now());
-        let task_id = TaskId::new(&anchor, 1);
-        let dep1_id = TaskId::new(&anchor, 2);
-        let dep2_id = TaskId::new(&anchor, 3);
+        let brief = BriefId::new("Test", Utc::now());
+        let task_id = TaskId::new(&brief, 1);
+        let dep1_id = TaskId::new(&brief, 2);
+        let dep2_id = TaskId::new(&brief, 3);
 
         let base = Task::new(task_id.clone(), "Task");
 
@@ -301,8 +301,8 @@ mod tests {
     #[test]
     fn merge_backward_compat_no_versions() {
         // Simulate old tasks without version tracking
-        let anchor = AnchorId::new("Test", Utc::now());
-        let task_id = TaskId::new(&anchor, 1);
+        let brief = BriefId::new("Test", Utc::now());
+        let task_id = TaskId::new(&brief, 1);
 
         let mut base = Task::new(task_id.clone(), "Task");
         base.versions = super::super::task::FieldVersions::from_epoch();

@@ -7,7 +7,7 @@
 //! | Group | Purpose | Examples |
 //! |-------|---------|----------|
 //! | Core | Project management | `init`, `status` |
-//! | Anchor | Document lifecycle | `anchor new`, `anchor list`, `anchor show` |
+//! | Brief | Document lifecycle | `brief new`, `brief list`, `brief show` |
 //! | Task | Work item management | `task add`, `task start`, `task done` |
 //! | Query | Task state queries | `ready`, `blocked` |
 //! | Context | AI integration | `context`, `context --compact` |
@@ -31,7 +31,7 @@
 //! Call [`run()`] to parse arguments and execute the appropriate command.
 
 mod agent_setup;
-mod anchor;
+mod brief;
 mod app;
 mod cache_cmd;
 mod compact;

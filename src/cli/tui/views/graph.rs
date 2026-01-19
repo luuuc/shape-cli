@@ -53,7 +53,7 @@ fn build_dependency_graph(app: &App) -> String {
         .map(|(id, t)| (id.clone(), t.status))
         .collect();
 
-    // Find root tasks (tasks with no dependencies or whose dependencies are all from other anchors)
+    // Find root tasks (tasks with no dependencies or whose dependencies are all from other briefs)
     let mut roots: Vec<&TaskId> = Vec::new();
     let mut has_dependents: HashSet<TaskId> = HashSet::new();
 
@@ -67,7 +67,7 @@ fn build_dependency_graph(app: &App) -> String {
         let task = &tasks[task_id];
         // A task is a root if:
         // 1. It has no blocking dependencies, OR
-        // 2. All its blocking dependencies are from other anchors
+        // 2. All its blocking dependencies are from other briefs
         let is_root = task.depends_on.blocking().all(|dep| {
             !tasks.contains_key(&dep.task)
         });

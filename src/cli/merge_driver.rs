@@ -185,12 +185,12 @@ fn tasks_equal(a: &Task, b: &Task) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::{AnchorId, TaskId};
+    use crate::domain::{BriefId, TaskId};
     use chrono::Utc;
     use tempfile::TempDir;
 
-    fn make_task(anchor: &AnchorId, seq: u32, title: &str) -> Task {
-        let task_id = TaskId::new(anchor, seq);
+    fn make_task(brief: &BriefId, seq: u32, title: &str) -> Task {
+        let task_id = TaskId::new(brief, seq);
         Task::new(task_id, title)
     }
 
@@ -203,10 +203,10 @@ mod tests {
     #[test]
     fn merge_simple_no_conflict() {
         let dir = TempDir::new().unwrap();
-        let anchor = AnchorId::new("Test", Utc::now());
+        let brief = BriefId::new("Test", Utc::now());
 
-        let task1 = make_task(&anchor, 1, "Task 1");
-        let task2 = make_task(&anchor, 2, "Task 2");
+        let task1 = make_task(&brief, 1, "Task 1");
+        let task2 = make_task(&brief, 2, "Task 2");
 
         // Base has task1
         let base_path = write_test_file(dir.path(), "base", std::slice::from_ref(&task1));
@@ -231,9 +231,9 @@ mod tests {
     #[test]
     fn merge_both_modify_same_task() {
         let dir = TempDir::new().unwrap();
-        let anchor = AnchorId::new("Test", Utc::now());
+        let brief = BriefId::new("Test", Utc::now());
 
-        let task1 = make_task(&anchor, 1, "Original");
+        let task1 = make_task(&brief, 1, "Original");
 
         // Base has original task
         let base_path = write_test_file(dir.path(), "base", std::slice::from_ref(&task1));
@@ -267,9 +267,9 @@ mod tests {
     #[test]
     fn merge_delete_vs_modify_conflict() {
         let dir = TempDir::new().unwrap();
-        let anchor = AnchorId::new("Test", Utc::now());
+        let brief = BriefId::new("Test", Utc::now());
 
-        let task1 = make_task(&anchor, 1, "Task 1");
+        let task1 = make_task(&brief, 1, "Task 1");
 
         // Base has task1
         let base_path = write_test_file(dir.path(), "base", std::slice::from_ref(&task1));

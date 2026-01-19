@@ -67,19 +67,19 @@ impl TaskStore {
         Ok(tasks)
     }
 
-    /// Reads tasks for a specific anchor
-    pub fn read_for_anchor(
+    /// Reads tasks for a specific brief
+    pub fn read_for_brief(
         &self,
-        anchor_id: &crate::domain::AnchorId,
+        brief_id: &crate::domain::BriefId,
     ) -> Result<HashMap<TaskId, Task>> {
         let all = self.read_all()?;
         Ok(all
             .into_iter()
-            .filter(|(_, task)| task.anchor_id().as_ref() == Some(anchor_id))
+            .filter(|(_, task)| task.brief_id().as_ref() == Some(brief_id))
             .collect())
     }
 
-    /// Reads all standalone tasks (tasks not belonging to any anchor)
+    /// Reads all standalone tasks (tasks not belonging to any brief)
     pub fn read_standalone(&self) -> Result<HashMap<TaskId, Task>> {
         let all = self.read_all()?;
         Ok(all
@@ -197,8 +197,8 @@ mod tests {
     use tempfile::TempDir;
 
     fn make_task(seq: u32) -> Task {
-        let anchor = crate::domain::AnchorId::new("Test", Utc::now());
-        let task_id = crate::domain::TaskId::new(&anchor, seq);
+        let brief = crate::domain::BriefId::new("Test", Utc::now());
+        let task_id = crate::domain::TaskId::new(&brief, seq);
         Task::new(task_id, format!("Task {}", seq))
     }
 

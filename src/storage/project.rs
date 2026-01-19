@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use thiserror::Error;
 
-use super::{AnchorStore, Cache, Config, TaskStore};
+use super::{BriefStore, Cache, Config, TaskStore};
 
 #[derive(Debug, Error)]
 pub enum ProjectError {
@@ -60,11 +60,11 @@ impl Project {
             format!("Failed to create .shape directory: {}", shape_dir.display())
         })?;
 
-        let anchors_dir = shape_dir.join("anchors");
-        fs::create_dir_all(&anchors_dir).with_context(|| {
+        let briefs_dir = shape_dir.join("briefs");
+        fs::create_dir_all(&briefs_dir).with_context(|| {
             format!(
-                "Failed to create anchors directory: {}",
-                anchors_dir.display()
+                "Failed to create briefs directory: {}",
+                briefs_dir.display()
             )
         })?;
 
@@ -86,8 +86,8 @@ impl Project {
             let default_config = r#"# Shape CLI configuration
 # See https://shape.dev/docs/config for options
 
-# Default anchor type for 'shape anchor new'
-default_anchor_type = "minimal"
+# Default brief type for 'shape brief new'
+default_brief_type = "minimal"
 
 # Plugins to load
 plugins = []
@@ -103,7 +103,7 @@ context_days = 7
         let gitignore_path = shape_dir.join(".gitignore");
         if !gitignore_path.exists() {
             let gitignore = r#"# Ignore index files (they're regenerated)
-anchors/index.jsonl
+briefs/index.jsonl
 
 # Ignore SQLite cache (regenerated from source files)
 .cache/
@@ -152,9 +152,9 @@ daemon.log.*
         TaskStore::for_project(&self.root)
     }
 
-    /// Returns the anchor store
-    pub fn anchor_store(&self) -> AnchorStore {
-        AnchorStore::for_project(&self.root)
+    /// Returns the brief store
+    pub fn brief_store(&self) -> BriefStore {
+        BriefStore::for_project(&self.root)
     }
 
     /// Returns the plugins directory
@@ -181,8 +181,8 @@ daemon.log.*
     pub fn rebuild_cache(&self) -> Result<()> {
         let mut cache = self.cache()?;
         let tasks = self.task_store().read_all()?;
-        let anchors = self.anchor_store().read_all()?;
-        cache.rebuild(&tasks, &anchors)?;
+        let briefs = self.brief_store().read_all()?;
+        cache.rebuild(&tasks, &briefs)?;
         Ok(())
     }
 
@@ -192,8 +192,8 @@ daemon.log.*
 
         if cache.is_stale()? {
             let tasks = self.task_store().read_all()?;
-            let anchors = self.anchor_store().read_all()?;
-            cache.rebuild(&tasks, &anchors)?;
+            let briefs = self.brief_store().read_all()?;
+            cache.rebuild(&tasks, &briefs)?;
         }
 
         Ok(cache)
@@ -221,7 +221,7 @@ mod tests {
         let project = Project::init(dir.path()).unwrap();
 
         assert!(project.shape_dir().is_dir());
-        assert!(project.shape_dir().join("anchors").is_dir());
+        assert!(project.shape_dir().join("briefs").is_dir());
         assert!(project.shape_dir().join("plugins").is_dir());
         assert!(project.shape_dir().join("sync").is_dir());
         assert!(project.shape_dir().join("config.toml").is_file());
@@ -261,10 +261,10 @@ mod tests {
         let project = Project::init(dir.path()).unwrap();
 
         let task_store = project.task_store();
-        let anchor_store = project.anchor_store();
+        let brief_store = project.brief_store();
 
         assert!(task_store.path().ends_with("tasks.jsonl"));
-        assert!(anchor_store.dir().ends_with("anchors"));
+        assert!(brief_store.dir().ends_with("briefs"));
     }
 
     #[test]

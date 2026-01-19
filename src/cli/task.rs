@@ -6,30 +6,30 @@ use anyhow::Result;
 use clap::Subcommand;
 
 use super::output::Output;
-use crate::domain::{AnchorId, DependencyGraph, Task, TaskId, TaskStatus};
+use crate::domain::{BriefId, DependencyGraph, Task, TaskId, TaskStatus};
 use crate::storage::Project;
 
 #[derive(Subcommand)]
 pub enum TaskCommands {
-    /// Add a task (standalone, to an anchor, or as a subtask)
+    /// Add a task (standalone, to a brief, or as a subtask)
     ///
     /// Examples:
     ///   shape task add "Fix typo"              # Standalone task
-    ///   shape task add a-1234567 "Build API"   # Task under anchor
-    ///   shape task add a-1234567.1 "Subtask"   # Subtask under task
+    ///   shape task add b-1234567 "Build API"   # Task under brief
+    ///   shape task add b-1234567.1 "Subtask"   # Subtask under task
     Add {
         /// For standalone: just the title
-        /// For anchored: parent ID (anchor or task)
+        /// For brief tasks: parent ID (brief or task)
         first: String,
 
         /// Task title (when first arg is parent ID)
         second: Option<String>,
     },
 
-    /// List tasks (all, for an anchor, or standalone only)
+    /// List tasks (all, for a brief, or standalone only)
     List {
-        /// Anchor ID (omit for all tasks, use --standalone for standalone only)
-        anchor: Option<String>,
+        /// Brief ID (omit for all tasks, use --standalone for standalone only)
+        brief: Option<String>,
 
         /// Show only standalone tasks
         #[arg(long)]
@@ -153,17 +153,17 @@ pub fn run(cmd: TaskCommands, output: &Output) -> Result<()> {
 
     match cmd {
         TaskCommands::Add { first, second } => {
-            // Determine if this is standalone or anchored based on arguments:
+            // Determine if this is standalone or brief-based based on arguments:
             // - One arg: standalone task with title = first
-            // - Two args: anchored task with parent = first, title = second
+            // - Two args: brief task with parent = first, title = second
             let (parent, title) = match second {
                 Some(title) => (Some(first.as_str()), title),
                 None => (None, first),
             };
             add_task(output, parent, &title)
         }
-        TaskCommands::List { anchor, standalone } => {
-            list_tasks(output, anchor.as_deref(), standalone)
+        TaskCommands::List { brief, standalone } => {
+            list_tasks(output, brief.as_deref(), standalone)
         }
         TaskCommands::Show { id } => show_task(output, &id),
         TaskCommands::Start { id } => start_task(output, &id),
@@ -251,18 +251,18 @@ fn add_task(output: &Output, parent_str: Option<&str>, title: &str) -> Result<()
 
                 parent_id.subtask(max_seq + 1)
             } else {
-                // Parent is an anchor - create top-level task under anchor
-                let anchor_id: AnchorId = parent.parse()?;
+                // Parent is a brief - create top-level task under brief
+                let brief_id: BriefId = parent.parse()?;
 
-                // Verify anchor exists
-                let anchor_store = project.anchor_store();
-                if !anchor_store.exists(&anchor_id) {
-                    anyhow::bail!("Anchor not found: {}", anchor_id);
+                // Verify brief exists
+                let brief_store = project.brief_store();
+                if !brief_store.exists(&brief_id) {
+                    anyhow::bail!("Brief not found: {}", brief_id);
                 }
 
-                let tasks = store.read_for_anchor(&anchor_id)?;
+                let tasks = store.read_for_brief(&brief_id)?;
 
-                // Find max task sequence for this anchor
+                // Find max task sequence for this brief
                 let max_seq = tasks
                     .values()
                     .filter(|t| t.id.depth() == 1)
@@ -270,7 +270,7 @@ fn add_task(output: &Output, parent_str: Option<&str>, title: &str) -> Result<()
                     .max()
                     .unwrap_or(0);
 
-                TaskId::new(&anchor_id, max_seq + 1)
+                TaskId::new(&brief_id, max_seq + 1)
             }
         }
     };
@@ -292,15 +292,15 @@ fn add_task(output: &Output, parent_str: Option<&str>, title: &str) -> Result<()
     Ok(())
 }
 
-fn list_tasks(output: &Output, anchor_str: Option<&str>, standalone_only: bool) -> Result<()> {
+fn list_tasks(output: &Output, brief_str: Option<&str>, standalone_only: bool) -> Result<()> {
     let project = Project::open_current()?;
     let store = project.task_store();
 
     let tasks = if standalone_only {
         store.read_standalone()?
-    } else if let Some(anchor_str) = anchor_str {
-        let anchor_id: AnchorId = anchor_str.parse()?;
-        store.read_for_anchor(&anchor_id)?
+    } else if let Some(brief_str) = brief_str {
+        let brief_id: BriefId = brief_str.parse()?;
+        store.read_for_brief(&brief_id)?
     } else {
         store.read_all()?
     };
@@ -314,7 +314,7 @@ fn list_tasks(output: &Output, anchor_str: Option<&str>, standalone_only: bool) 
                     "title": t.title,
                     "status": t.status,
                     "standalone": t.is_standalone(),
-                    "anchor_id": t.anchor_id().map(|a| a.to_string()),
+                    "brief_id": t.brief_id().map(|a| a.to_string()),
                     "depends_on": t.depends_on.iter().map(|d| {
                         serde_json::json!({
                             "task": d.task.to_string(),
@@ -328,8 +328,8 @@ fn list_tasks(output: &Output, anchor_str: Option<&str>, standalone_only: bool) 
     } else if tasks.is_empty() {
         if standalone_only {
             println!("No standalone tasks");
-        } else if let Some(anchor_str) = anchor_str {
-            println!("No tasks for anchor {}", anchor_str);
+        } else if let Some(brief_str) = brief_str {
+            println!("No tasks for brief {}", brief_str);
         } else {
             println!("No tasks");
         }
@@ -378,7 +378,7 @@ fn show_task(output: &Output, id_str: &str) -> Result<()> {
             "title": task.title,
             "status": task.status,
             "standalone": task.is_standalone(),
-            "anchor_id": task.anchor_id().map(|a| a.to_string()),
+            "brief_id": task.brief_id().map(|a| a.to_string()),
             "depends_on": task.depends_on.iter().map(|d| {
                 serde_json::json!({
                     "task": d.task.to_string(),
@@ -397,8 +397,8 @@ fn show_task(output: &Output, id_str: &str) -> Result<()> {
         println!("Task: {}", task.id);
         println!("Title: {}", task.title);
         println!("Status: {:?}", task.status);
-        if let Some(anchor) = task.anchor_id() {
-            println!("Anchor: {}", anchor);
+        if let Some(brief) = task.brief_id() {
+            println!("Brief: {}", brief);
         } else {
             println!("Type: Standalone");
         }

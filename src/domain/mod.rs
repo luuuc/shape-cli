@@ -4,33 +4,33 @@
 //!
 //! ## Key Types
 //!
-//! - [`Anchor`] - A document (pitch, RFC, PRD) that spawns tasks
-//! - [`Task`] - An executable unit of work belonging to an anchor
-//! - [`AnchorId`] / [`TaskId`] - Unique identifiers with format `a-{hash}` and `a-{hash}.{seq}`
+//! - [`Brief`] - A document (pitch, RFC, PRD) that spawns tasks
+//! - [`Task`] - An executable unit of work belonging to a brief
+//! - [`BriefId`] / [`TaskId`] - Unique identifiers with format `b-{hash}` and `b-{hash}.{seq}`
 //! - [`DependencyGraph`] - DAG of task dependencies with cycle detection
 //!
 //! ## Status Lifecycles
 //!
-//! **Anchors**: `Proposed` → `Betting` → `InProgress` → `Shipped` | `Archived`
+//! **Briefs**: `Proposed` → `Betting` → `InProgress` → `Shipped` | `Archived`
 //!
 //! **Tasks**: `Todo` → `InProgress` → `Done`
 //!
 //! ## Invariants
 //!
 //! - The [`DependencyGraph`] is always acyclic (DAG)
-//! - Task IDs are hierarchical: `{anchor-id}.{sequence}` (e.g., `a-7f2b4c1.1`)
+//! - Task IDs are hierarchical: `{brief-id}.{sequence}` (e.g., `b-7f2b4c1.1`)
 //! - All timestamps are UTC
 //!
 //! ## Example
 //!
 //! ```
-//! use shape_cli::domain::{Anchor, Task, TaskId, DependencyGraph, TaskStatus};
+//! use shape_cli::domain::{Brief, Task, TaskId, DependencyGraph, TaskStatus};
 //! use std::collections::HashMap;
 //!
-//! // Create an anchor and tasks
-//! let anchor = Anchor::new("My Pitch", "minimal");
-//! let task1 = Task::new(TaskId::new(&anchor.id, 1), "First task");
-//! let task2 = Task::new(TaskId::new(&anchor.id, 2), "Second task");
+//! // Create a brief and tasks
+//! let brief = Brief::new("My Pitch", "minimal");
+//! let task1 = Task::new(TaskId::new(&brief.id, 1), "First task");
+//! let task2 = Task::new(TaskId::new(&brief.id, 2), "Second task");
 //!
 //! // Build a dependency graph
 //! let mut graph = DependencyGraph::new();
@@ -48,15 +48,15 @@
 //! assert!(!ready.contains(&task2.id)); // task2 is blocked
 //! ```
 
-mod anchor;
+mod brief;
 mod graph;
 mod id;
 mod merge;
 mod task;
 
-pub use anchor::{Anchor, AnchorFrontmatter, AnchorMeta, AnchorStatus};
+pub use brief::{Brief, BriefFrontmatter, BriefMeta, BriefStatus};
 pub use graph::{DependencyGraph, GraphError};
-pub use id::{AnchorId, IdError, TaskId};
+pub use id::{BriefId, IdError, TaskId};
 pub use merge::{merge_tasks, MergeResult};
 pub use task::{
     current_timestamp, Dependencies, Dependency, DependencyType, FieldVersions, Task, TaskMeta,

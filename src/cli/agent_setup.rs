@@ -61,7 +61,7 @@ This project uses Shape CLI for task tracking.
 
 ### Getting context
 - `shape context --compact` - Full project state (token-optimized)
-- `shape anchor show <id>` - Single anchor details
+- `shape brief show <id>` - Single brief details
 
 Always check `shape ready` before starting work.
 "#;

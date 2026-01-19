@@ -6,7 +6,7 @@ use anyhow::Result;
 use chrono::{Duration, Utc};
 
 use super::output::Output;
-use crate::domain::{AnchorId, TaskId};
+use crate::domain::{BriefId, TaskId};
 use crate::storage::{CompactionStrategy, Project};
 
 /// Result of a compaction operation
@@ -29,8 +29,8 @@ pub struct CompactedGroup {
     pub summary: String,
     /// IDs of all tasks in this group
     pub task_ids: Vec<TaskId>,
-    /// Anchor ID these tasks belong to (None for standalone)
-    pub anchor_id: Option<AnchorId>,
+    /// Brief ID these tasks belong to (None for standalone)
+    pub brief_id: Option<BriefId>,
 }
 
 /// Candidate task info collected before mutation.
@@ -42,14 +42,14 @@ pub struct CompactedGroup {
 struct CandidateInfo {
     id: TaskId,
     title: String,
-    anchor_id: Option<AnchorId>,
+    brief_id: Option<BriefId>,
 }
 
 /// Run the compact command
 pub fn run(
     output: &Output,
     days: u32,
-    anchor_filter: Option<&str>,
+    brief_filter: Option<&str>,
     dry_run: bool,
     strategy: Option<&str>,
 ) -> Result<()> {
@@ -94,20 +94,20 @@ pub fn run(
         .map(|t| CandidateInfo {
             id: t.id.clone(),
             title: t.title.clone(),
-            anchor_id: t.anchor_id(),
+            brief_id: t.brief_id(),
         })
         .collect();
 
-    // Apply anchor filter if specified
-    if let Some(anchor_str) = anchor_filter {
-        let anchor_id: AnchorId = anchor_str.parse()?;
-        candidates.retain(|c| c.anchor_id.as_ref() == Some(&anchor_id));
+    // Apply brief filter if specified
+    if let Some(brief_str) = brief_filter {
+        let brief_id: BriefId = brief_str.parse()?;
+        candidates.retain(|c| c.brief_id.as_ref() == Some(&brief_id));
         output.verbose_ctx(
             "compact",
             &format!(
-                "Filtered to {} candidates for anchor {}",
+                "Filtered to {} candidates for brief {}",
                 candidates.len(),
-                anchor_id
+                brief_id
             ),
         );
     }
@@ -128,11 +128,11 @@ pub fn run(
         return Ok(());
     }
 
-    // Group candidates by anchor (or standalone)
-    let mut by_anchor: HashMap<Option<AnchorId>, Vec<CandidateInfo>> = HashMap::new();
+    // Group candidates by brief (or standalone)
+    let mut by_brief: HashMap<Option<BriefId>, Vec<CandidateInfo>> = HashMap::new();
     for candidate in candidates {
-        by_anchor
-            .entry(candidate.anchor_id.clone())
+        by_brief
+            .entry(candidate.brief_id.clone())
             .or_default()
             .push(candidate);
     }
@@ -144,14 +144,14 @@ pub fn run(
         dry_run,
     };
 
-    for (anchor_id, anchor_candidates) in by_anchor {
+    for (brief_id, brief_candidates) in by_brief {
         // Skip groups that don't meet minimum threshold
-        if anchor_candidates.len() < min_tasks {
+        if brief_candidates.len() < min_tasks {
             output.verbose_ctx(
                 "compact",
                 &format!(
                     "Skipping group with {} tasks (min: {})",
-                    anchor_candidates.len(),
+                    brief_candidates.len(),
                     min_tasks
                 ),
             );
@@ -160,7 +160,7 @@ pub fn run(
 
         // Generate summary based on strategy
         let summary = generate_summary_from_titles(
-            &anchor_candidates
+            &brief_candidates
                 .iter()
                 .map(|c| c.title.as_str())
                 .collect::<Vec<_>>(),
@@ -168,7 +168,7 @@ pub fn run(
         );
 
         // Collect task IDs
-        let task_ids: Vec<TaskId> = anchor_candidates.iter().map(|c| c.id.clone()).collect();
+        let task_ids: Vec<TaskId> = brief_candidates.iter().map(|c| c.id.clone()).collect();
 
         // First task becomes the representative.
         // SAFETY: task_ids is guaranteed non-empty because we skip groups with
@@ -179,7 +179,7 @@ pub fn run(
             representative_id: representative_id.clone(),
             summary: summary.clone(),
             task_ids: task_ids.clone(),
-            anchor_id: anchor_id.clone(),
+            brief_id: brief_id.clone(),
         });
 
         result.total_compacted += task_ids.len();
@@ -216,7 +216,7 @@ pub fn run(
                     "summary": g.summary,
                     "task_count": g.task_ids.len(),
                     "task_ids": g.task_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>(),
-                    "anchor_id": g.anchor_id.as_ref().map(|a| a.to_string()),
+                    "brief_id": g.brief_id.as_ref().map(|a| a.to_string()),
                 })
             })
             .collect();
@@ -237,17 +237,17 @@ pub fn run(
             println!("No groups meet the minimum size threshold ({})", min_tasks);
         } else {
             for group in &result.groups {
-                let anchor_label = group
-                    .anchor_id
+                let brief_label = group
+                    .brief_id
                     .as_ref()
-                    .map(|a| format!("anchor {}", a))
+                    .map(|a| format!("brief {}", a))
                     .unwrap_or_else(|| "standalone".to_string());
 
                 println!(
                     "{} {} tasks from {} into {}:",
                     action,
                     group.task_ids.len(),
-                    anchor_label,
+                    brief_label,
                     group.representative_id
                 );
                 println!("  Summary: {}", group.summary);

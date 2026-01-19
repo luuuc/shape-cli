@@ -1,41 +1,41 @@
-//! Anchor CLI commands
+//! Brief CLI commands
 
 use anyhow::Result;
 use clap::Subcommand;
 
 use super::output::Output;
-use crate::domain::{Anchor, AnchorId, AnchorStatus};
-use crate::plugin::{MinimalAnchorType, ShapeUpAnchorType};
+use crate::domain::{Brief, BriefId, BriefStatus};
+use crate::plugin::{MinimalBriefType, ShapeUpBriefType};
 use crate::storage::Project;
 
 #[derive(Subcommand)]
-pub enum AnchorCommands {
-    /// Create a new anchor
+pub enum BriefCommands {
+    /// Create a new brief
     New {
-        /// Anchor title
+        /// Brief title
         title: String,
 
-        /// Anchor type (default: minimal)
+        /// Brief type (default: minimal)
         #[arg(long, short = 't', default_value = "minimal")]
-        anchor_type: String,
+        brief_type: String,
     },
 
-    /// List all anchors
+    /// List all briefs
     List {
         /// Filter by status
         #[arg(long, short)]
         status: Option<String>,
     },
 
-    /// Show anchor details
+    /// Show brief details
     Show {
-        /// Anchor ID
+        /// Brief ID
         id: String,
     },
 
-    /// Update anchor status
+    /// Update brief status
     Status {
-        /// Anchor ID
+        /// Brief ID
         id: String,
 
         /// New status
@@ -43,66 +43,66 @@ pub enum AnchorCommands {
     },
 }
 
-pub fn run(cmd: AnchorCommands, output: &Output) -> Result<()> {
+pub fn run(cmd: BriefCommands, output: &Output) -> Result<()> {
     match cmd {
-        AnchorCommands::New { title, anchor_type } => new_anchor(output, &title, &anchor_type),
-        AnchorCommands::List { status } => list_anchors(output, status.as_deref()),
-        AnchorCommands::Show { id } => show_anchor(output, &id),
-        AnchorCommands::Status { id, status } => set_status(output, &id, &status),
+        BriefCommands::New { title, brief_type } => new_brief(output, &title, &brief_type),
+        BriefCommands::List { status } => list_briefs(output, status.as_deref()),
+        BriefCommands::Show { id } => show_brief(output, &id),
+        BriefCommands::Status { id, status } => set_status(output, &id, &status),
     }
 }
 
-fn new_anchor(output: &Output, title: &str, anchor_type: &str) -> Result<()> {
+fn new_brief(output: &Output, title: &str, brief_type: &str) -> Result<()> {
     let project = Project::open_current()?;
-    let store = project.anchor_store();
+    let store = project.brief_store();
 
     // Get template based on type
-    let template = match anchor_type {
-        "minimal" => MinimalAnchorType::template(title),
-        "shapeup" => ShapeUpAnchorType::template(title),
+    let template = match brief_type {
+        "minimal" => MinimalBriefType::template(title),
+        "shapeup" => ShapeUpBriefType::template(title),
         _ => {
             // Fall back to minimal for unknown types
             // External plugin-based types would be loaded here
-            MinimalAnchorType::template(title)
+            MinimalBriefType::template(title)
         }
     };
 
-    // Create anchor
-    let mut anchor = Anchor::new(title, anchor_type);
-    anchor.set_body(&template.body);
+    // Create brief
+    let mut brief = Brief::new(title, brief_type);
+    brief.set_body(&template.body);
 
     // Apply template frontmatter to meta
     if let Some(obj) = template.frontmatter.as_object() {
         for (key, value) in obj {
             if key != "title" && key != "status" {
                 let v: serde_json::Value = value.clone();
-                anchor.set_meta(key, v);
+                brief.set_meta(key, v);
             }
         }
     }
 
-    store.write(&anchor)?;
+    store.write(&brief)?;
 
     if output.is_json() {
         output.data(&serde_json::json!({
-            "id": anchor.id.to_string(),
-            "title": anchor.title,
-            "type": anchor.anchor_type,
-            "status": anchor.status,
+            "id": brief.id.to_string(),
+            "title": brief.title,
+            "type": brief.brief_type,
+            "status": brief.status,
         }));
     } else {
-        output.success(&format!("Created anchor: {} ({})", anchor.id, anchor.title));
+        output.success(&format!("Created brief: {} ({})", brief.id, brief.title));
     }
 
     Ok(())
 }
 
-fn list_anchors(output: &Output, status_filter: Option<&str>) -> Result<()> {
+fn list_briefs(output: &Output, status_filter: Option<&str>) -> Result<()> {
     let project = Project::open_current()?;
-    let store = project.anchor_store();
+    let store = project.brief_store();
 
     let list = if let Some(status_str) = status_filter {
-        let status: AnchorStatus = status_str
+        let status: BriefStatus = status_str
             .parse()
             .map_err(|_| anyhow::anyhow!("Invalid status: {}", status_str))?;
         store
@@ -127,7 +127,7 @@ fn list_anchors(output: &Output, status_filter: Option<&str>) -> Result<()> {
             .collect();
         output.data(&items);
     } else if list.is_empty() {
-        println!("No anchors found.");
+        println!("No briefs found.");
     } else {
         println!("{:<12} {:<15} TITLE", "ID", "STATUS");
         println!("{}", "-".repeat(60));
@@ -139,28 +139,28 @@ fn list_anchors(output: &Output, status_filter: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-fn show_anchor(output: &Output, id_str: &str) -> Result<()> {
+fn show_brief(output: &Output, id_str: &str) -> Result<()> {
     let project = Project::open_current()?;
-    let store = project.anchor_store();
+    let store = project.brief_store();
     let task_store = project.task_store();
 
-    let id: AnchorId = id_str.parse()?;
-    let anchor = store
+    let id: BriefId = id_str.parse()?;
+    let brief = store
         .read(&id)?
-        .ok_or_else(|| anyhow::anyhow!("Anchor not found: {}", id))?;
+        .ok_or_else(|| anyhow::anyhow!("Brief not found: {}", id))?;
 
-    let tasks = task_store.read_for_anchor(&id)?;
+    let tasks = task_store.read_for_brief(&id)?;
 
     if output.is_json() {
         output.data(&serde_json::json!({
-            "id": anchor.id.to_string(),
-            "title": anchor.title,
-            "type": anchor.anchor_type,
-            "status": anchor.status,
-            "created_at": anchor.created_at,
-            "updated_at": anchor.updated_at,
-            "body": anchor.body,
-            "meta": anchor.meta,
+            "id": brief.id.to_string(),
+            "title": brief.title,
+            "type": brief.brief_type,
+            "status": brief.status,
+            "created_at": brief.created_at,
+            "updated_at": brief.updated_at,
+            "body": brief.body,
+            "meta": brief.meta,
             "tasks": tasks.values().map(|t| serde_json::json!({
                 "id": t.id.to_string(),
                 "title": t.title,
@@ -168,22 +168,22 @@ fn show_anchor(output: &Output, id_str: &str) -> Result<()> {
             })).collect::<Vec<_>>(),
         }));
     } else {
-        println!("Anchor: {} ({})", anchor.id, anchor.anchor_type);
-        println!("Title: {}", anchor.title);
-        println!("Status: {}", anchor.status);
-        println!("Created: {}", anchor.created_at.format("%Y-%m-%d %H:%M"));
-        println!("Updated: {}", anchor.updated_at.format("%Y-%m-%d %H:%M"));
+        println!("Brief: {} ({})", brief.id, brief.brief_type);
+        println!("Title: {}", brief.title);
+        println!("Status: {}", brief.status);
+        println!("Created: {}", brief.created_at.format("%Y-%m-%d %H:%M"));
+        println!("Updated: {}", brief.updated_at.format("%Y-%m-%d %H:%M"));
 
-        if !anchor.meta.is_empty() {
+        if !brief.meta.is_empty() {
             println!("\nMetadata:");
-            for (key, value) in anchor.meta.iter() {
+            for (key, value) in brief.meta.iter() {
                 println!("  {}: {}", key, value);
             }
         }
 
-        if !anchor.body.is_empty() {
+        if !brief.body.is_empty() {
             println!("\nContent:");
-            println!("{}", anchor.body);
+            println!("{}", brief.body);
         }
 
         if !tasks.is_empty() {
@@ -204,29 +204,29 @@ fn show_anchor(output: &Output, id_str: &str) -> Result<()> {
 
 fn set_status(output: &Output, id_str: &str, status_str: &str) -> Result<()> {
     let project = Project::open_current()?;
-    let store = project.anchor_store();
+    let store = project.brief_store();
 
-    let id: AnchorId = id_str.parse()?;
-    let mut anchor = store
+    let id: BriefId = id_str.parse()?;
+    let mut brief = store
         .read(&id)?
-        .ok_or_else(|| anyhow::anyhow!("Anchor not found: {}", id))?;
+        .ok_or_else(|| anyhow::anyhow!("Brief not found: {}", id))?;
 
-    let status: AnchorStatus = status_str
+    let status: BriefStatus = status_str
         .parse()
         .map_err(|_| anyhow::anyhow!("Invalid status: {}", status_str))?;
 
-    anchor.set_status(status);
-    store.write(&anchor)?;
+    brief.set_status(status);
+    store.write(&brief)?;
 
     if output.is_json() {
         output.data(&serde_json::json!({
-            "id": anchor.id.to_string(),
-            "status": anchor.status,
+            "id": brief.id.to_string(),
+            "status": brief.status,
         }));
     } else {
         output.success(&format!(
             "Updated {} status to {}",
-            anchor.id, anchor.status
+            brief.id, brief.status
         ));
     }
 

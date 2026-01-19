@@ -231,8 +231,8 @@ impl DependencyGraph {
             Err(_) => {
                 // This shouldn't happen if we maintain acyclicity
                 Err(GraphError::CycleDetected(
-                    TaskId::new(&super::id::AnchorId::new("cycle", chrono::Utc::now()), 0),
-                    TaskId::new(&super::id::AnchorId::new("cycle", chrono::Utc::now()), 0),
+                    TaskId::new(&super::id::BriefId::new("cycle", chrono::Utc::now()), 0),
+                    TaskId::new(&super::id::BriefId::new("cycle", chrono::Utc::now()), 0),
                 ))
             }
         }
@@ -265,8 +265,8 @@ mod tests {
     use chrono::Utc;
 
     fn make_task_id(seq: u32) -> TaskId {
-        let anchor = super::super::id::AnchorId::new("Test", Utc::now());
-        TaskId::new(&anchor, seq)
+        let brief = super::super::id::BriefId::new("Test", Utc::now());
+        TaskId::new(&brief, seq)
     }
 
     #[test]
@@ -449,9 +449,9 @@ mod tests {
 
     #[test]
     fn from_tasks() {
-        let anchor = super::super::id::AnchorId::new("Test", Utc::now());
-        let id1 = TaskId::new(&anchor, 1);
-        let id2 = TaskId::new(&anchor, 2);
+        let brief = super::super::id::BriefId::new("Test", Utc::now());
+        let id1 = TaskId::new(&brief, 1);
+        let id2 = TaskId::new(&brief, 2);
 
         let task1 = Task::new(id1.clone(), "Task 1");
         let mut task2 = Task::new(id2.clone(), "Task 2");
@@ -480,10 +480,10 @@ mod tests {
         use std::time::Instant;
 
         let mut graph = DependencyGraph::new();
-        let anchor = super::super::id::AnchorId::new("Perf", Utc::now());
+        let brief = super::super::id::BriefId::new("Perf", Utc::now());
 
         // Create 500 tasks
-        let task_ids: Vec<_> = (1..=500).map(|i| TaskId::new(&anchor, i)).collect();
+        let task_ids: Vec<_> = (1..=500).map(|i| TaskId::new(&brief, i)).collect();
 
         for id in &task_ids {
             graph.add_task(id.clone());

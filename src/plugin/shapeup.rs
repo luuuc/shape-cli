@@ -1,18 +1,18 @@
-//! ShapeUp anchor type plugin
+//! ShapeUp brief type plugin
 //!
 //! Implements the ShapeUp methodology with:
 //! - Appetite fields (6-weeks, 2-weeks, 1-week)
 //! - Problem, Solution, Rabbit Holes, No-Gos sections
 //! - ShapeUp-specific statuses (proposed, betting, in_progress, shipped, archived)
 
-use super::anchor_type::{AnchorTemplate, ParseResult, ValidationError};
+use super::brief_type::{BriefTemplate, ParseResult, ValidationError};
 
-/// ShapeUp anchor type implementation (built into core)
-pub struct ShapeUpAnchorType;
+/// ShapeUp brief type implementation (built into core)
+pub struct ShapeUpBriefType;
 
-impl ShapeUpAnchorType {
+impl ShapeUpBriefType {
     /// Gets the template for a ShapeUp pitch
-    pub fn template(title: &str) -> AnchorTemplate {
+    pub fn template(title: &str) -> BriefTemplate {
         let body = format!(
             r#"# {}
 
@@ -50,7 +50,7 @@ What is out of scope for this pitch?
             title
         );
 
-        AnchorTemplate {
+        BriefTemplate {
             frontmatter: serde_json::json!({
                 "title": title,
                 "status": "proposed",
@@ -61,7 +61,7 @@ What is out of scope for this pitch?
         }
     }
 
-    /// Returns valid statuses for ShapeUp anchors
+    /// Returns valid statuses for ShapeUp briefs
     pub fn statuses() -> Vec<String> {
         vec![
             "proposed".to_string(),
@@ -79,7 +79,7 @@ What is out of scope for this pitch?
         ]
     }
 
-    /// Validates a ShapeUp anchor frontmatter
+    /// Validates a ShapeUp brief frontmatter
     pub fn validate(frontmatter: &serde_json::Value) -> ParseResult {
         let mut errors = Vec::new();
 
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn shapeup_template() {
-        let template = ShapeUpAnchorType::template("My Pitch");
+        let template = ShapeUpBriefType::template("My Pitch");
 
         assert_eq!(
             template.frontmatter.get("title").unwrap().as_str().unwrap(),
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn shapeup_statuses() {
-        let statuses = ShapeUpAnchorType::statuses();
+        let statuses = ShapeUpBriefType::statuses();
 
         assert!(statuses.contains(&"proposed".to_string()));
         assert!(statuses.contains(&"betting".to_string()));
@@ -178,7 +178,7 @@ mod tests {
             "appetite": "6-weeks",
         });
 
-        let result = ShapeUpAnchorType::validate(&frontmatter);
+        let result = ShapeUpBriefType::validate(&frontmatter);
         assert!(result.valid);
         assert!(result.errors.is_empty());
     }
@@ -190,7 +190,7 @@ mod tests {
             "appetite": "6-weeks",
         });
 
-        let result = ShapeUpAnchorType::validate(&frontmatter);
+        let result = ShapeUpBriefType::validate(&frontmatter);
         assert!(!result.valid);
         assert!(result.errors.iter().any(|e| e.field == "title"));
     }
@@ -203,7 +203,7 @@ mod tests {
             "appetite": "3-weeks",
         });
 
-        let result = ShapeUpAnchorType::validate(&frontmatter);
+        let result = ShapeUpBriefType::validate(&frontmatter);
         assert!(!result.valid);
         assert!(result.errors.iter().any(|e| e.field == "appetite"));
     }
@@ -216,7 +216,7 @@ mod tests {
             "appetite": "6-weeks",
         });
 
-        let result = ShapeUpAnchorType::validate(&frontmatter);
+        let result = ShapeUpBriefType::validate(&frontmatter);
         assert!(!result.valid);
         assert!(result.errors.iter().any(|e| e.field == "status"));
     }
@@ -229,7 +229,7 @@ mod tests {
             "appetite": "2-weeks",
         });
 
-        let result = ShapeUpAnchorType::validate(&frontmatter);
+        let result = ShapeUpBriefType::validate(&frontmatter);
         assert!(result.valid);
     }
 }
