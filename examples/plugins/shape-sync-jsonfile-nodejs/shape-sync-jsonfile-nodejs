@@ -1,0 +1,111 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const readline = require('readline');
+
+const SYNC_FILE = 'shape-sync.json';
+
+const manifest = {
+  name: 'shape-sync-jsonfile-nodejs',
+  version: '1.0.0',
+  description: 'Sync briefs to local JSON file (Node.js)',
+  type: 'sync',
+  operations: ['push', 'pull', 'status', 'test']
+};
+
+function handleTest() {
+  return { success: true };
+}
+
+function handlePush(params) {
+  const briefs = params.briefs || [];
+  const tasks = params.tasks || [];
+
+  const data = {
+    briefs: briefs,
+    tasks: tasks,
+    synced_at: new Date().toISOString()
+  };
+  fs.writeFileSync(SYNC_FILE, JSON.stringify(data, null, 2));
+
+  return {
+    success: true,
+    data: {
+      pushed: briefs.length,
+      pulled: 0,
+      conflicts: 0,
+      errors: [],
+      mappings: []
+    }
+  };
+}
+
+function handlePull() {
+  if (!fs.existsSync(SYNC_FILE)) {
+    return {
+      success: true,
+      data: {
+        briefs: [],
+        tasks: [],
+        mappings: [],
+        pushed: 0,
+        pulled: 0,
+        conflicts: 0,
+        errors: []
+      }
+    };
+  }
+
+  const content = JSON.parse(fs.readFileSync(SYNC_FILE, 'utf8'));
+  const briefs = content.briefs || [];
+  const tasks = content.tasks || [];
+
+  return {
+    success: true,
+    data: {
+      briefs: briefs,
+      tasks: tasks,
+      mappings: [],
+      pushed: 0,
+      pulled: briefs.length,
+      conflicts: 0,
+      errors: []
+    }
+  };
+}
+
+function handleStatus() {
+  return {
+    success: true,
+    data: {
+      mapped_briefs: 0,
+      mapped_tasks: 0
+    }
+  };
+}
+
+function handleRequest(request) {
+  const operation = request.operation;
+  const params = request.params || {};
+
+  switch (operation) {
+    case 'test':   return handleTest();
+    case 'push':   return handlePush(params);
+    case 'pull':   return handlePull();
+    case 'status': return handleStatus();
+    default:       return { success: false, error: 'Unknown operation: ' + operation };
+  }
+}
+
+// Main
+if (process.argv.includes('--manifest')) {
+  console.log(JSON.stringify(manifest));
+} else {
+  const rl = readline.createInterface({ input: process.stdin });
+  rl.on('line', function(line) {
+    const request = JSON.parse(line);
+    const response = handleRequest(request);
+    console.log(JSON.stringify(response));
+    rl.close();
+  });
+}
