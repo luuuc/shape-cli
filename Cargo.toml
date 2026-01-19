@@ -42,6 +42,9 @@ blake3 = "1"
 # Directory handling
 directories = "6"
 
+# SQLite cache
+rusqlite = { version = "0.32", features = ["bundled"] }
+
 
 [dev-dependencies]
 # CLI testing

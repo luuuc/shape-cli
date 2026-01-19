@@ -42,8 +42,10 @@ mod jsonl;
 mod markdown;
 mod config;
 mod project;
+mod cache;
 
 pub use jsonl::TaskStore;
 pub use markdown::AnchorStore;
 pub use config::{Config, ConfigError};
 pub use project::{Project, ProjectError};
+pub use cache::{Cache, CacheError, CachedAnchor, CachedTask, SearchResult, SearchResultType};

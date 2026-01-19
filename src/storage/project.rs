@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use thiserror::Error;
 
-use super::{AnchorStore, Config, TaskStore};
+use super::{AnchorStore, Cache, Config, TaskStore};
 
 #[derive(Debug, Error)]
 pub enum ProjectError {
@@ -97,6 +97,9 @@ context_days = 7
             let gitignore = r#"# Ignore index files (they're regenerated)
 anchors/index.jsonl
 
+# Ignore SQLite cache (regenerated from source files)
+.cache/
+
 # Ignore sync state (contains remote IDs)
 sync/
 
@@ -148,6 +151,38 @@ plugins/*.cache
     /// Returns the sync directory
     pub fn sync_dir(&self) -> PathBuf {
         self.shape_dir().join("sync")
+    }
+
+    /// Returns the cache directory
+    pub fn cache_dir(&self) -> PathBuf {
+        self.shape_dir().join(".cache")
+    }
+
+    /// Opens the SQLite cache for this project
+    pub fn cache(&self) -> Result<Cache> {
+        Cache::open(&self.root)
+    }
+
+    /// Rebuilds the cache from source files
+    pub fn rebuild_cache(&self) -> Result<()> {
+        let mut cache = self.cache()?;
+        let tasks = self.task_store().read_all()?;
+        let anchors = self.anchor_store().read_all()?;
+        cache.rebuild(&tasks, &anchors)?;
+        Ok(())
+    }
+
+    /// Gets the cache if it's fresh, or rebuilds it if stale
+    pub fn get_or_rebuild_cache(&self) -> Result<Cache> {
+        let mut cache = self.cache()?;
+
+        if cache.is_stale()? {
+            let tasks = self.task_store().read_all()?;
+            let anchors = self.anchor_store().read_all()?;
+            cache.rebuild(&tasks, &anchors)?;
+        }
+
+        Ok(cache)
     }
 
     /// Checks if a path is inside this project

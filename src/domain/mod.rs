@@ -52,8 +52,10 @@ mod id;
 mod task;
 mod anchor;
 mod graph;
+mod merge;
 
 pub use id::{AnchorId, TaskId, IdError};
-pub use task::{Task, TaskStatus, TaskMeta};
+pub use task::{Task, TaskStatus, TaskMeta, FieldVersions, current_timestamp};
 pub use anchor::{Anchor, AnchorStatus, AnchorMeta, AnchorFrontmatter};
 pub use graph::{DependencyGraph, GraphError};
+pub use merge::{merge_tasks, MergeResult};

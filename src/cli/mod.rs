@@ -39,6 +39,8 @@ mod context;
 mod plugin_cmd;
 mod sync_cmd;
 mod agent_setup;
+mod cache_cmd;
+mod merge_driver;
 
 pub use app::{Cli, Commands, run};
 pub use output::{Output, OutputFormat};

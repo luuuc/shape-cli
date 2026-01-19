@@ -70,6 +70,106 @@ impl TaskMeta {
     pub fn iter(&self) -> impl Iterator<Item = (&String, &serde_json::Value)> {
         self.0.iter()
     }
+
+    /// Returns all keys
+    pub fn keys(&self) -> impl Iterator<Item = &String> {
+        self.0.keys()
+    }
+}
+
+/// Per-field version timestamps for conflict resolution
+///
+/// Each field tracks when it was last modified (as milliseconds since epoch).
+/// This enables field-level conflict resolution: when merging concurrent edits,
+/// the field with the newer timestamp wins.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct FieldVersions {
+    /// Version timestamp for title field
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub title: i64,
+
+    /// Version timestamp for status field
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub status: i64,
+
+    /// Version timestamp for description field
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub description: i64,
+
+    /// Version timestamp for completed_at field
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub completed_at: i64,
+
+    /// Per-key version timestamps for metadata fields
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub meta: HashMap<String, i64>,
+}
+
+fn is_zero(val: &i64) -> bool {
+    *val == 0
+}
+
+impl FieldVersions {
+    /// Creates new field versions with current timestamp for all fields
+    pub fn new() -> Self {
+        let now = current_timestamp();
+        Self {
+            title: now,
+            status: now,
+            description: 0,
+            completed_at: 0,
+            meta: HashMap::new(),
+        }
+    }
+
+    /// Creates field versions from epoch (for backward compatibility with old tasks)
+    pub fn from_epoch() -> Self {
+        Self::default()
+    }
+
+    /// Updates the title version to current timestamp
+    pub fn touch_title(&mut self) {
+        self.title = current_timestamp();
+    }
+
+    /// Updates the status version to current timestamp
+    pub fn touch_status(&mut self) {
+        self.status = current_timestamp();
+    }
+
+    /// Updates the description version to current timestamp
+    pub fn touch_description(&mut self) {
+        self.description = current_timestamp();
+    }
+
+    /// Updates the completed_at version to current timestamp
+    pub fn touch_completed_at(&mut self) {
+        self.completed_at = current_timestamp();
+    }
+
+    /// Updates a metadata key's version to current timestamp
+    pub fn touch_meta(&mut self, key: &str) {
+        self.meta.insert(key.to_string(), current_timestamp());
+    }
+
+    /// Gets the version timestamp for a metadata key
+    pub fn meta_version(&self, key: &str) -> i64 {
+        self.meta.get(key).copied().unwrap_or(0)
+    }
+
+    /// Returns true if all version timestamps are zero (backward compat mode)
+    pub fn is_empty(&self) -> bool {
+        self.title == 0
+            && self.status == 0
+            && self.description == 0
+            && self.completed_at == 0
+            && self.meta.is_empty()
+    }
+}
+
+/// Returns current timestamp in milliseconds since epoch
+pub fn current_timestamp() -> i64 {
+    Utc::now().timestamp_millis()
 }
 
 /// A task within an anchor
@@ -105,6 +205,11 @@ pub struct Task {
     /// Extensible metadata
     #[serde(default, skip_serializing_if = "TaskMeta::is_empty")]
     pub meta: TaskMeta,
+
+    /// Per-field version timestamps for conflict resolution
+    /// Field is named `_v` in JSON for compactness
+    #[serde(rename = "_v", default, skip_serializing_if = "FieldVersions::is_empty")]
+    pub versions: FieldVersions,
 }
 
 impl Task {
@@ -121,6 +226,7 @@ impl Task {
             completed_at: None,
             description: None,
             meta: TaskMeta::new(),
+            versions: FieldVersions::new(),
         }
     }
 
@@ -167,6 +273,7 @@ impl Task {
         if self.status == TaskStatus::Todo {
             self.status = TaskStatus::InProgress;
             self.updated_at = Utc::now();
+            self.versions.touch_status();
         }
     }
 
@@ -177,6 +284,8 @@ impl Task {
             let now = Utc::now();
             self.updated_at = now;
             self.completed_at = Some(now);
+            self.versions.touch_status();
+            self.versions.touch_completed_at();
         }
     }
 
@@ -186,6 +295,8 @@ impl Task {
             self.status = TaskStatus::Todo;
             self.updated_at = Utc::now();
             self.completed_at = None;
+            self.versions.touch_status();
+            self.versions.touch_completed_at();
         }
     }
 
@@ -205,6 +316,8 @@ impl Task {
 
     /// Sets a metadata value
     pub fn set_meta(&mut self, key: impl Into<String>, value: impl Into<serde_json::Value>) {
+        let key = key.into();
+        self.versions.touch_meta(&key);
         self.meta.set(key, value);
         self.updated_at = Utc::now();
     }
@@ -218,6 +331,7 @@ impl Task {
     pub fn remove_meta(&mut self, key: &str) -> Option<serde_json::Value> {
         let result = self.meta.remove(key);
         if result.is_some() {
+            self.versions.touch_meta(key);
             self.updated_at = Utc::now();
         }
         result
@@ -227,6 +341,14 @@ impl Task {
     pub fn set_description(&mut self, description: impl Into<String>) {
         self.description = Some(description.into());
         self.updated_at = Utc::now();
+        self.versions.touch_description();
+    }
+
+    /// Sets the title
+    pub fn set_title(&mut self, title: impl Into<String>) {
+        self.title = title.into();
+        self.updated_at = Utc::now();
+        self.versions.touch_title();
     }
 }
 
