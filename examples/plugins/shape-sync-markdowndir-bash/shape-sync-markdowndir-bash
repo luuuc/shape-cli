@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OUTPUT_DIR="${SHAPE_SYNC_MARKDOWN_DIR:-./pitches}"
+
+print_manifest() {
+  cat <<'EOF'
+{"name":"shape-sync-markdowndir-bash","version":"1.0.0","description":"Sync briefs to markdown directory (Bash)","type":"sync","operations":["push","pull","status","test"]}
+EOF
+}
+
+slugify() {
+  echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/^-\|-$//g' | sed 's/--*/-/g'
+}
+
+handle_push() {
+  local params="$1"
+  mkdir -p "$OUTPUT_DIR"
+
+  local count=0
+  local mappings="[]"
+
+  # Iterate over briefs array
+  local briefs
+  briefs=$(echo "$params" | jq -c '.briefs[]')
+
+  while IFS= read -r brief; do
+    local id title status appetite body filename filepath slug
+    id=$(echo "$brief" | jq -r '.id')
+    title=$(echo "$brief" | jq -r '.title')
+    status=$(echo "$brief" | jq -r '.status // "proposed"')
+    appetite=$(echo "$brief" | jq -r '.appetite // empty')
+    body=$(echo "$brief" | jq -r '.body // ""')
+
+    slug=$(slugify "$title")
+    filename="${id}-${slug}.md"
+    filepath="${OUTPUT_DIR}/${filename}"
+
+    # Generate markdown with frontmatter
+    {
+      echo "---"
+      echo "id: ${id}"
+      echo "title: \"${title}\""
+      echo "status: ${status}"
+      [[ -n "$appetite" ]] && echo "appetite: ${appetite}"
+      echo "synced_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      echo "---"
+      echo ""
+      echo "$body"
+    } > "$filepath"
+
+    # Add to mappings
+    mappings=$(echo "$mappings" | jq \
+      --arg local_id "$id" \
+      --arg remote_id "$filename" \
+      '. + [{"local_id": $local_id, "remote_id": $remote_id, "entity_type": "brief"}]')
+
+    ((count++)) || true
+  done <<< "$briefs"
+
+  jq -n \
+    --argjson pushed "$count" \
+    --argjson mappings "$mappings" \
+    '{"success":true,"data":{"pushed":$pushed,"pulled":0,"conflicts":0,"errors":[],"mappings":$mappings}}'
+}
+
+handle_pull() {
+  if [[ ! -d "$OUTPUT_DIR" ]]; then
+    echo '{"success":true,"data":{"briefs":[],"tasks":[],"mappings":[],"pushed":0,"pulled":0,"conflicts":0,"errors":[]}}'
+    return
+  fi
+
+  local briefs="[]"
+
+  for filepath in "$OUTPUT_DIR"/*.md; do
+    [[ -f "$filepath" ]] || continue
+
+    # Parse frontmatter (simple approach)
+    local in_frontmatter=false
+    local id="" title="" status="" body=""
+
+    while IFS= read -r line; do
+      if [[ "$line" == "---" ]]; then
+        if $in_frontmatter; then
+          in_frontmatter=false
+        else
+          in_frontmatter=true
+        fi
+        continue
+      fi
+
+      if $in_frontmatter; then
+        case "$line" in
+          id:*) id="${line#id: }" ;;
+          title:*) title="${line#title: }"; title="${title#\"}"; title="${title%\"}" ;;
+          status:*) status="${line#status: }" ;;
+        esac
+      else
+        body+="$line"$'\n'
+      fi
+    done < "$filepath"
+
+    briefs=$(echo "$briefs" | jq \
+      --arg id "$id" \
+      --arg title "$title" \
+      --arg status "$status" \
+      --arg body "$body" \
+      '. + [{"id": $id, "title": $title, "status": $status, "body": $body}]')
+  done
+
+  local count
+  count=$(echo "$briefs" | jq 'length')
+
+  jq -n \
+    --argjson briefs "$briefs" \
+    --argjson count "$count" \
+    '{"success":true,"data":{"briefs":$briefs,"tasks":[],"mappings":[],"pushed":0,"pulled":$count,"conflicts":0,"errors":[]}}'
+}
+
+handle_status() {
+  local count=0
+  if [[ -d "$OUTPUT_DIR" ]]; then
+    count=$(find "$OUTPUT_DIR" -name "*.md" -type f | wc -l | tr -d ' ')
+  fi
+  echo "{\"success\":true,\"data\":{\"mapped_briefs\":$count,\"mapped_tasks\":0}}"
+}
+
+# Main
+if [[ "${1:-}" == "--manifest" ]]; then
+  print_manifest
+  exit 0
+fi
+
+read -r request
+operation=$(echo "$request" | jq -r '.operation')
+params=$(echo "$request" | jq '.params')
+
+case "$operation" in
+  test)   echo '{"success":true}' ;;
+  push)   handle_push "$params" ;;
+  pull)   handle_pull ;;
+  status) handle_status ;;
+  *)      echo "{\"success\":false,\"error\":\"Unknown operation: $operation\"}" ;;
+esac
